@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+option csharp_namespace = "customer_service";
+
+package customer;
+
+service Customer {
+  rpc ReserveCredit (ReserveCreditRequest) returns (ReserveCreditReply);
+  rpc CancelReserveCredit (CancelReserveCreditRequest) returns (CancelReserveCreditReply);
+}
+
+// The request message containing the user's name.
+message ReserveCreditRequest {
+  string orderId = 1;
+  string customerName = 2;
+  int64 amount = 3;
+}
+
+// The response message containing the greetings.
+message ReserveCreditReply {
+  bool success = 1;
+  string message = 2;
+}
+
+message CancelReserveCreditRequest {
+	string orderId = 1;
+	string customerName = 2;
+}
+
+message CancelReserveCreditReply {
+  bool success = 1;
+  string message = 2;
+}

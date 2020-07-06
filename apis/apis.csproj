@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>netcoreapp3.1</TargetFramework>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Update="Protos\merchant.proto">
+      <GrpcServices>Server</GrpcServices>
+    </None>
+    <None Update="Protos\customer.proto">
+      <GrpcServices>Server</GrpcServices>
+    </None>
+    <None Update="Protos\order.proto">
+      <GrpcServices>Server</GrpcServices>
+    </None>
+  </ItemGroup>
+
+</Project>

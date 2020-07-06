@@ -1,0 +1,46 @@
+syntax = "proto3";
+
+option csharp_namespace = "merchant_service";
+
+option go_package = ".;merchant_service";
+
+package merchant;
+
+service Merchant {
+  rpc AddLockedBalance (AddLockedBalanceRequest) returns (AddLockedBalanceReply);
+  rpc ApproveLockedBalance (ApproveLockedBalanceRequest) returns (ApproveLockedBalanceReply);
+  rpc CancelAddLockedBalance (CancelAddLockedBalanceRequest) returns (CancelAddLockedBalanceReply);
+}
+
+message AddLockedBalanceRequest {
+  string orderId = 1;
+  string merchantName = 2;
+  int64 amount = 3;
+}
+
+message AddLockedBalanceReply {
+  bool success = 1;
+  string message = 2;
+}
+
+message ApproveLockedBalanceRequest {
+  string orderId = 1;
+  string merchantName = 2;
+  int64 amount = 3;
+}
+
+message ApproveLockedBalanceReply {
+  bool success = 1;
+  string message = 2;
+}
+
+message CancelAddLockedBalanceRequest {
+	string orderId = 1;
+	string merchantName = 2;
+	int64 amount = 3;
+}
+
+message CancelAddLockedBalanceReply {
+  bool success = 1;
+  string message = 2;
+}

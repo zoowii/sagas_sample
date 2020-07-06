@@ -1,0 +1,11 @@
+/.idea
+/*.iml
+/merchant_server.exe
+/merchant_server
+/.vscode
+/out
+/dist
+/build
+/logs
+/*.log
+*~

@@ -1,0 +1,9 @@
+/.vs
+/.vscode
+/x64
+/bin
+/obj
+/Debug
+/Release
+/*.filter
+

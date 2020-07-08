@@ -9,6 +9,7 @@
     <Protobuf Include="..\apis\Protos\order.proto" GrpcServices="Client" />
     <Protobuf Include="..\apis\Protos\customer.proto" GrpcServices="Client" />
     <Protobuf Include="..\apis\Protos\merchant.proto" GrpcServices="Client" />
+    <Protobuf Include="..\apis\Protos\history.proto" GrpcServices="Client" />
   </ItemGroup>
 
 

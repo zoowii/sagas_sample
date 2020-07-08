@@ -1,0 +1,36 @@
+syntax = "proto3";
+
+option csharp_namespace = "history_service";
+
+package history;
+
+// The history service definition.
+service History {
+  
+  rpc AddOrderHistory (AddOrderHistoryRequest) returns (AddOrderHistoryReply) {}
+  rpc CancelOrderHistory (CancelOrderHistoryRequest) returns (CancelOrderHistoryReply) {}
+  
+}
+
+message AddOrderHistoryRequest {
+  string orderId = 1;
+  string customerName = 2;
+  int64 amount = 3;
+}
+
+message AddOrderHistoryReply {
+  bool success = 1;
+  string message = 2;
+}
+
+message CancelOrderHistoryRequest {
+  string orderId = 1;
+  string customerName = 2;
+  int64 amount = 3;
+  string reason = 4;
+}
+
+message CancelOrderHistoryReply {
+  bool success = 1;
+  string message = 2;
+}

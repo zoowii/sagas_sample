@@ -5,6 +5,7 @@ using System.Threading.Tasks;
 using customer_service;
 using order_service;
 using merchant_service;
+using history_service;
 
 
 namespace BusinessApi
@@ -15,5 +16,7 @@ namespace BusinessApi
         public Customer.CustomerClient CustomerClient { get; set; }
 
         public Merchant.MerchantClient MerchantClient { get; set; }
+
+        public History.HistoryClient HistoryClient { get; set; }
     }
 }

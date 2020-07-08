@@ -2,15 +2,17 @@
 using customer_service;
 using Grpc.Core;
 using Grpc.Net.Client;
-using merchant_service;
 using Microsoft.Extensions.Hosting;
 using Microsoft.Extensions.Logging;
-using order_service;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using merchant_service;
+using order_service;
+using history_service;
+using System.Net.Http;
 
 namespace BusinessApi.Tasks
 {
@@ -28,7 +30,7 @@ namespace BusinessApi.Tasks
             this._consulClient = consulClient;
         }
 
-        private async Task<string> getGrpcServiceEndpoint(string serviceName)
+        private async Task<string> getGrpcServiceEndpoint(string serviceName, string scheme="https")
         {
             var sResp = await _consulClient.Catalog.Service(serviceName);
             if (sResp.Response.Count() < 1)
@@ -36,8 +38,7 @@ namespace BusinessApi.Tasks
                 throw new Exception($"can't find service {serviceName}");
             }
             var s = sResp.Response.First();
-            var scheme = "https";
-            if(s.ServiceMeta.ContainsKey("scheme"))
+            if (s.ServiceMeta.ContainsKey("scheme"))
             {
                 scheme = s.ServiceMeta["scheme"];
             }
@@ -47,15 +48,19 @@ namespace BusinessApi.Tasks
 
         private ChannelBase createGrpcChannelFromUrl(string url)
         {
-            if(url.StartsWith("https://"))
+            if (url.StartsWith("https://"))
             {
-                return GrpcChannel.ForAddress(url);
+                var httpHandler = new HttpClientHandler();
+                // Return `true` to allow certificates that are untrusted/invalid
+                httpHandler.ServerCertificateCustomValidationCallback =
+                    HttpClientHandler.DangerousAcceptAnyServerCertificateValidator;
+                return GrpcChannel.ForAddress(url, new GrpcChannelOptions { HttpHandler = httpHandler });
             }
-            else if(url.StartsWith("http://"))
+            else if (url.StartsWith("http://"))
             {
-                return GrpcChannel.ForAddress(url, new GrpcChannelOptions() { Credentials= ChannelCredentials.Insecure });
+                return GrpcChannel.ForAddress(url, new GrpcChannelOptions() { Credentials = ChannelCredentials.Insecure });
             }
-            else if(url.StartsWith("grpc://"))
+            else if (url.StartsWith("grpc://"))
             {
                 var uri = new Uri(url);
                 var endpoint = $"{uri.Host}:{uri.Port}";
@@ -65,7 +70,7 @@ namespace BusinessApi.Tasks
             {
                 var uri = new Uri(url);
                 var endpoint = $"{uri.Host}:{uri.Port}";
-                return new Channel(url, ChannelCredentials.Insecure);
+                return new Channel(endpoint, ChannelCredentials.Insecure);
             }
         }
 
@@ -82,14 +87,23 @@ namespace BusinessApi.Tasks
                 {
                     var serviceName = "CustomerService";
                     var url = await getGrpcServiceEndpoint(serviceName);
+                    _logger.LogInformation($"service {serviceName} url {url}");
                     var channel = createGrpcChannelFromUrl(url);
                     _grpcClientsHolder.CustomerClient = new Customer.CustomerClient(channel);
                 }
                 {
                     var serviceName = "MerchantService";
                     var url = await getGrpcServiceEndpoint(serviceName);
+                    _logger.LogInformation($"service {serviceName} url {url}");
                     var channel = createGrpcChannelFromUrl(url);
                     _grpcClientsHolder.MerchantClient = new Merchant.MerchantClient(channel);
+                }
+                {
+                    var serviceName = "history.service";
+                    var url = await getGrpcServiceEndpoint(serviceName, "grpc");
+                    _logger.LogInformation($"service {serviceName} url {url}");
+                    var channel = createGrpcChannelFromUrl(url);
+                    _grpcClientsHolder.HistoryClient = new History.HistoryClient(channel);
                 }
                 _logger.LogInformation($"grpc services clients inited");
             }

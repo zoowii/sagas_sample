@@ -3,12 +3,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using customer_service;
-using order_service;
-using merchant_service;
 using apis.Exceptions;
 using commons.services.Sagas;
 using Microsoft.Extensions.Logging;
+using customer_service;
+using order_service;
+using merchant_service;
+using history_service;
 
 namespace BusinessApi.Sagas
 {
@@ -45,6 +46,9 @@ namespace BusinessApi.Sagas
                 .SetRemoteAction(approveOrder)
                 .Step()
                 .SetRemoteAction(approveAddLockedBalanceToMerchant)
+                .Step()
+                .SetRemoteAction(addOrderHistory)
+                .WithCompensation(cancelOrderHistory)
                 .Build(this);
         }
 
@@ -80,6 +84,10 @@ namespace BusinessApi.Sagas
         {
             try
             {
+                if (form.OrderId == null)
+                {
+                    return;
+                }
                 var reply = await _grpcClientsHolder.OrderClient.CancelOrderAsync(
                     new CancelOrderRequest
                     {
@@ -126,6 +134,10 @@ namespace BusinessApi.Sagas
         {
             try
             {
+                if (form.OrderId == null)
+                {
+                    return;
+                }
                 var reply = await _grpcClientsHolder.CustomerClient.CancelReserveCreditAsync(
                      new CancelReserveCreditRequest
                      {
@@ -195,6 +207,10 @@ namespace BusinessApi.Sagas
         {
             try
             {
+                if(form.OrderId==null)
+                {
+                    return;
+                }
                 var reply = await _grpcClientsHolder.MerchantClient.CancelAddLockedBalanceAsync(
                     new CancelAddLockedBalanceRequest
                     {
@@ -219,6 +235,10 @@ namespace BusinessApi.Sagas
         {
             try
             {
+                if (form.OrderId == null)
+                {
+                    return;
+                }
                 var reply = await _grpcClientsHolder.MerchantClient.ApproveLockedBalanceAsync(
                     new ApproveLockedBalanceRequest
                     {
@@ -230,6 +250,63 @@ namespace BusinessApi.Sagas
                 {
                     form.RejectionReason = CreateOrderRejectionReason.UNKNOWN_ERROR;
                     throw new SagaAbortException($"addLockedBalanceToMerchant failed {reply.Message}");
+                }
+            }
+            catch (Exception e)
+            {
+                form.RejectionReason = CreateOrderRejectionReason.UNKNOWN_ERROR;
+                throw new SagaAbortException(e);
+            }
+        }
+
+        private async Task addOrderHistory(CreateOrderSagaData form)
+        {
+            try
+            {
+                if (form.OrderId == null)
+                {
+                    return;
+                }
+                var reply = await _grpcClientsHolder.HistoryClient.AddOrderHistoryAsync(
+                    new AddOrderHistoryRequest
+                    {
+                        OrderId = form.OrderId,
+                        Amount = form.CreateOrder.Amount,
+                        CustomerName = form.CreateOrder.CustomerName
+                    });
+                if (!reply.Success)
+                {
+                    form.RejectionReason = CreateOrderRejectionReason.UNKNOWN_ERROR;
+                    throw new SagaAbortException($"addOrderHistory failed {reply.Message}");
+                }
+            }
+            catch (Exception e)
+            {
+                form.RejectionReason = CreateOrderRejectionReason.UNKNOWN_ERROR;
+                throw new SagaAbortException(e);
+            }
+        }
+
+        private async Task cancelOrderHistory(CreateOrderSagaData form)
+        {
+            try
+            {
+                if (form.OrderId == null)
+                {
+                    return;
+                }
+                var reply = await _grpcClientsHolder.HistoryClient.CancelOrderHistoryAsync(
+                    new CancelOrderHistoryRequest
+                    {
+                        OrderId = form.OrderId,
+                        Amount = form.CreateOrder.Amount,
+                        CustomerName = form.CreateOrder.CustomerName,
+                        Reason = form.RejectionReason.ToString()
+                    });
+                if (!reply.Success)
+                {
+                    form.RejectionReason = CreateOrderRejectionReason.UNKNOWN_ERROR;
+                    throw new SagaAbortException($"cancelOrderHistory failed {reply.Message}");
                 }
             }
             catch (Exception e)

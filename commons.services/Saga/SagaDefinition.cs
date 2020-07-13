@@ -1,7 +1,9 @@
 ﻿using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Linq.Expressions;
 using System.Threading.Tasks;
+using commons.services.Saga;
 
 namespace commons.services.Sagas
 {
@@ -68,6 +70,26 @@ namespace commons.services.Sagas
         {
             buildingStep.Local = false;
             buildingStep.Action = ToStepCallback(action);
+
+            var compensableAttrs = action.Method.GetCustomAttributes(typeof(Compensable), true);
+            if(compensableAttrs.Count()>0)
+            {
+                var compensableAttr = compensableAttrs.First();
+                var compensableAttrObj = compensableAttr as Compensable;
+                var compensableActionName = compensableAttrObj.ActionName;
+                var compensableMethod = action.Method.DeclaringType.GetMethod(compensableActionName);
+                if(compensableMethod==null)
+                {
+                    throw new SagaAbortException($"can't find compensable method {compensableMethod} in class {action.Method.DeclaringType.FullName}");
+                }
+                var actionInvoker = action.Target;
+                SagaStep.StepCallback compensableStepCallback = (SagaData form) =>
+                {
+                    object res = compensableMethod.Invoke(actionInvoker, new object[] { form });
+                    return res as Task;
+                };
+                buildingStep.Compensation = compensableStepCallback;
+            }
             return this;
         }
 

@@ -29,6 +29,7 @@ namespace BusinessApi
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+            services.AddSingleton<OrderService>();
             services.AddSingleton<CreateOrderSaga>();
             services.AddSingleton<SagaWorker, SimpleSagaWorker>();
             services.AddSingleton<SagaStore, MemorySagaStore>();

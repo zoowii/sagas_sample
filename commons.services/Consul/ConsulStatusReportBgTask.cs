@@ -20,19 +20,19 @@ namespace commons.services.Consul
         private readonly ILogger<ConsulStatusReportBgTask> _logger;
         private readonly IServer _server;
         private readonly IConfiguration _configuration;
-        private readonly ConsulServiceConguration _serviceConfuration;
+        private readonly ConsulServiceConfiguration _serviceConfuration;
         private Timer _timer;
         private string _serviceId;
         private string _checkId;
 
         public ConsulStatusReportBgTask(IConsulClient consulClient, ILogger<ConsulStatusReportBgTask> logger,
-            IServer server, IConfiguration configuration, ConsulServiceConguration serviceConguration)
+            IServer server, IConfiguration configuration, ConsulServiceConfiguration serviceConfiguration)
         {
             _consulClient = consulClient;
             _logger = logger;
             _server = server;
             _configuration = configuration;
-            _serviceConfuration = serviceConguration;
+            _serviceConfuration = serviceConfiguration;
         }
 
         private CancellationTokenSource _cts;

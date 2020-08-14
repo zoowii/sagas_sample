@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 namespace commons.services.Consul
 {
-    public class ConsulServiceConguration
+    public class ConsulServiceConfiguration
     {
         public const string Section = "Consul";
 

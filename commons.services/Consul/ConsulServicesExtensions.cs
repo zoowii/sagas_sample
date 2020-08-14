@@ -11,8 +11,8 @@ namespace commons.services.Consul
     {
         public static IServiceCollection UseTTLConsul(this IServiceCollection services, IConfiguration configuration)
         {
-            var consulServiceConfig = new ConsulServiceConguration();
-            configuration.GetSection(ConsulServiceConguration.Section).Bind(consulServiceConfig);
+            var consulServiceConfig = new ConsulServiceConfiguration();
+            configuration.GetSection(ConsulServiceConfiguration.Section).Bind(consulServiceConfig);
             services.AddSingleton(consulServiceConfig);
 
             string consulAddress = consulServiceConfig.ConsulUrl;

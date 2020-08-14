@@ -1,0 +1,12 @@
+/.idea
+/*.iml
+/saga_server.exe
+/saga_server
+/.vscode
+/out
+/dist
+/build
+/logs
+/*.log
+/.ionide
+*~

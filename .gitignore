@@ -6,4 +6,5 @@
 /Debug
 /Release
 /*.filter
-
+/.idea
+/*.iml

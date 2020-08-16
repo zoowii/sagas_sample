@@ -42,11 +42,9 @@ message CreateGlobalTransactionReply {
 
 message CreateBranchTransactionRequest {
   NodeInfo node = 1;
-  string branchServiceName = 2;
-  string branchServiceMethod = 3;
-  string branchCompensationServiceName = 4;
-  string branchCompensationServiceMethod = 5;
-  string xid = 6;
+  string branchServiceKey = 2;
+  string branchCompensationServiceKey = 3;
+  string xid = 4;
 }
 
 message CreateBranchTransactionReply {
@@ -64,6 +62,8 @@ message TransactionBranchDetail {
   NodeInfo node = 2;
   TxState state = 3;
   int32 compensationFailTimes = 4; // 本branch的补偿任务失败重试次数
+  string branchServiceKey = 5;
+  string branchCompensationServiceKey = 6;
 }
 
 message QueryGlobalTransactionDetailReply {

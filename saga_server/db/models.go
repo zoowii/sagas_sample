@@ -11,6 +11,8 @@ type GlobalTxEntity struct {
 	CreatorGroup string
 	CreatorService string
 	CreatorInstanceId string
+	ExpireSeconds int
+	Extra string
 }
 
 type BranchTxEntity struct {

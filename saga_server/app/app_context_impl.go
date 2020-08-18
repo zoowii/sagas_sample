@@ -12,7 +12,7 @@ type applicationContextImpl struct {
 	db *sql.DB
 }
 
-func NewApplicationContext(options []Option) (app ApplicationContext, err error) {
+func NewApplicationContext(options ...Option) (app ApplicationContext, err error) {
 	app = &applicationContextImpl{
 		options:            &appContextImplOptions{},
 	}
@@ -33,8 +33,9 @@ type appContextImplOptions struct {
 
 func (app *applicationContextImpl) Init() (err error)  {
 	dbUrl := app.options.dbUrl
+	var db *sql.DB
 	if len(dbUrl) > 0 {
-		db, err := dbModule.InitDb(dbUrl)
+		db, err = dbModule.InitDb(dbUrl)
 		if err != nil {
 			return
 		}

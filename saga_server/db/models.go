@@ -12,7 +12,7 @@ type GlobalTxEntity struct {
 	CreatorService string
 	CreatorInstanceId string
 	ExpireSeconds int
-	Extra string
+	Extra *string
 }
 
 type BranchTxEntity struct {

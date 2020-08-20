@@ -41,3 +41,11 @@ func TestServerCreateGlobalTransaction(t *testing.T) {
 	}
 	log.Printf("create global tx reply: %v", reply)
 }
+
+// TODO: test create branch step
+
+// TODO: query xid
+
+// TODO: submit global/branch state
+
+// TODO: list global tx list

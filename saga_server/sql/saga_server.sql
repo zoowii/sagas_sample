@@ -23,7 +23,7 @@ CREATE TABLE `branch_tx` (
   `branch_tx_id` varchar(50) NOT NULL,
   `xid` varchar(50) NOT NULL,
   `state` int(11) NOT NULL,
-  `compensation_fail_fimes` int(11) NOT NULL,
+  `compensation_fail_times` int(11) NOT NULL,
   `node_group` varchar(100) DEFAULT NULL,
   `node_service` varchar(100) DEFAULT NULL,
   `node_instance_id` varchar(100) DEFAULT NULL,

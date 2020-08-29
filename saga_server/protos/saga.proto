@@ -64,6 +64,7 @@ message TransactionBranchDetail {
   int32 compensationFailTimes = 4; // 本branch的补偿任务失败重试次数
   string branchServiceKey = 5;
   string branchCompensationServiceKey = 6;
+  int32 version = 7;
 }
 
 message QueryGlobalTransactionDetailReply {
@@ -73,11 +74,14 @@ message QueryGlobalTransactionDetailReply {
   repeated TransactionBranchDetail branches = 4;
   NodeInfo starterNode = 5;
   TxState state = 6;
+  int32 version = 7;
 }
 
 message SubmitGlobalTransactionStateRequest {
   string xid = 1;
-  TxState state = 2;
+  TxState oldState = 2;
+  TxState state = 3;
+  int32 oldVersion = 4; // 修改前的全局事务的版本号
 }
 
 message SubmitGlobalTransactionStateReply {
@@ -89,7 +93,10 @@ message SubmitGlobalTransactionStateReply {
 message SubmitBranchTransactionStateRequest {
   string xid = 1;
   string branchId = 2;
-  TxState state = 3;
+  TxState oldState = 3;
+  TxState state = 4;
+  int32 oldVersion = 5; // 修改前的分支事务的版本号
+  string jobId = 6; // 每次分支执行每次任务或者补偿任务都有一个不同的jobId
 }
 
 message SubmitBranchTransactionStateReply {

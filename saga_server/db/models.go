@@ -8,6 +8,7 @@ type GlobalTxEntity struct {
 	UpdatedAt *time.Time
 	Xid string // 全局事务ID
 	State int // 全局事务的状态
+	Version int32 // 修改版本号
 	CreatorGroup string
 	CreatorService string
 	CreatorInstanceId string
@@ -22,6 +23,7 @@ type BranchTxEntity struct {
 	BranchTxId string // 分支事务ID
 	Xid string // 分支事务所属全局事务ID
 	State int // 分支事务状态
+	Version int32 // 修改版本号
 	CompensationFailTimes int32 // 分支事务的补偿任务的失败次数
 	NodeGroup string
 	NodeService string

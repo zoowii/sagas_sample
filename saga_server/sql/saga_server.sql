@@ -37,6 +37,20 @@ CREATE TABLE `branch_tx` (
   KEY `branch_tx_node_group_node_service` (`node_group`,`node_service`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `branch_tx_compensation_fail_log` (
+  `id` bigint(20) NOT NULL AUTO_INCREMENT,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `xid` varchar(50) NOT NULL,
+  `branch_tx_id` varchar(50) DEFAULT NULL,
+  `job_id` varchar(50) NOT NULL,
+  `reason` text NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `branch_tx_compensation_fail_log_idx_xid_branch_tx_id` (`xid`, `branch_tx_id`),
+  KEY `branch_tx_compensation_fail_log_idx_branch_tx_id` (`branch_tx_id`),
+  UNIQUE KEY `branch_tx_compensation_fail_log_idx_job_id` (`job_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+
 CREATE TABLE `tx_log` (
   `id` bigint(20) NOT NULL AUTO_INCREMENT,
   `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,

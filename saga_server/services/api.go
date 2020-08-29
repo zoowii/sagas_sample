@@ -47,6 +47,7 @@ func generateUniqueId() string {
 
 const (
 	defaultGlobalTxExpireSeconds = 60
+	defaultBranchTxCompensationMaxFailTimes = 3 // 单个branchTx允许补偿任务最大的失败次数（超过则整个全局事务标记为异常失败）
 )
 
 func (s *SagaServerService) CreateGlobalTransaction(ctx context.Context,
@@ -178,6 +179,7 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 				InstanceId: branchTx.NodeInstanceId,
 			},
 			State:                        pb.TxState(branchTx.State),
+			Version: branchTx.Version,
 			CompensationFailTimes:        branchTx.CompensationFailTimes,
 			BranchServiceKey:             branchTx.BranchServiceKey,
 			BranchCompensationServiceKey: branchTx.BranchCompensationServiceKey,
@@ -188,6 +190,8 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 		Code:  Ok,
 		Xid:   xid,
 		State: pb.TxState(globalTx.State),
+		Version: globalTx.Version,
+		EndBranches: globalTx.EndBranches,
 		StarterNode: &pb.NodeInfo{
 			Group:      globalTx.CreatorGroup,
 			Service:    globalTx.CreatorService,
@@ -271,13 +275,14 @@ func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,
 }
 
 func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
-	req *pb.SubmitBranchTransactionStateRequest) (res *pb.SubmitBranchTransactionStateReply, err error) {
+	req *pb.SubmitBranchTransactionStateRequest) (*pb.SubmitBranchTransactionStateReply, error) {
 	log.Println("SubmitBranchTransactionState")
-	sendErrorResponse := func(code ReplyErrorCodes, msg string) {
-		res = &pb.SubmitBranchTransactionStateReply{
+	var err error
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.SubmitBranchTransactionStateReply, error) {
+		return &pb.SubmitBranchTransactionStateReply{
 			Code:  code,
 			Error: msg,
-		}
+		}, nil
 	}
 	dbConn := s.dbConn
 	xid := req.Xid
@@ -286,33 +291,29 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	oldState := req.OldState
 	oldVersion := req.OldVersion
 	jobId := req.JobId
+	errorReason := req.ErrorReason
 	branchTx, err := db.FindBranchTxByBranchTxId(ctx, dbConn, branchTxId)
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	if branchTx == nil {
-		sendErrorResponse(NotFoundError, fmt.Sprintf("branch tx %s not found", branchTxId))
-		return
+		return sendErrorResponse(NotFoundError, fmt.Sprintf("branch tx %s not found", branchTxId))
 	}
 	if branchTx.State != int(oldState) || branchTx.Version != oldVersion || branchTx.Xid != xid {
-		sendErrorResponse(ResourceChangedError, fmt.Sprintf("branch tx %s dirty change", branchTxId))
-		return
+		return sendErrorResponse(ResourceChangedError, fmt.Sprintf("branch tx %s dirty change", branchTxId))
 	}
-	if branchTx.State == int(state) {
-		// 没有改动
-		res = &pb.SubmitBranchTransactionStateReply{
+	if branchTx.State == int(state) && state != pb.TxState_COMPENSATION_ERROR {
+		// 没有改动且不是补偿失败（补偿失败可以多次）
+		return &pb.SubmitBranchTransactionStateReply{
 			Code:  Ok,
 			State: state,
-		}
-		return
+		}, nil
 	}
 
 	// 修改分支事务状态
 	tx, err := dbConn.BeginTx(ctx, nil)
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	defer func() {
 		if err != nil {
@@ -323,14 +324,13 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	}()
 	rowsChanged, err := db.UpdateBranchTxState(ctx, tx, xid, branchTxId, oldVersion, branchTx.State, int(state))
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	branchTx.State = int(state)
+	branchTx.Version += 1
 	if rowsChanged < 1 {
-		sendErrorResponse(ResourceChangedError,
+		return sendErrorResponse(ResourceChangedError,
 			fmt.Sprintf("branch tx %s not change, maybe version expired", branchTxId))
-		return
 	}
 
 	getOtherBranches := func() (others []*db.BranchTxEntity, err error) {
@@ -346,53 +346,96 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 		return
 	}
 
+	var globalTx *db.GlobalTxEntity
+	globalTx, err = db.FindGlobalTxByXid(ctx, dbConn, xid)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	if globalTx == nil {
+		err = errors.New(fmt.Sprintf("xid %s not found ", xid))
+		return sendErrorResponse(ResourceChangedError, err.Error())
+	}
+
 	if state == pb.TxState_COMMITTED {
-		// 如果这个xid的其他branches也都committed了，则这个xid要改成committed
-		var otherBranches []*db.BranchTxEntity
-		otherBranches, err = getOtherBranches()
-		if err != nil {
-			sendErrorResponse(ServerError, err.Error())
-			return
-		}
-		hasNotCommitted := false
-		for _, b := range otherBranches {
-			if b.State != int(pb.TxState_COMMITTED) {
-				hasNotCommitted = true
-				break
-			}
-		}
-		if !hasNotCommitted {
-			// 这个xid的各branches都committed了
-			var globalTx *db.GlobalTxEntity
-			globalTx, err = db.FindGlobalTxByXid(ctx, dbConn, xid)
+		if globalTx.EndBranches {
+			// 如果这个xid的flag是EndBranches(不再接受新branch)，那么 如果这个xid的其他branches也都committed了，则这个xid要改成committed
+			var otherBranches []*db.BranchTxEntity
+			otherBranches, err = getOtherBranches()
 			if err != nil {
-				sendErrorResponse(ServerError, err.Error())
-				return
+				return sendErrorResponse(ServerError, err.Error())
 			}
-			if globalTx == nil {
-				err = errors.New(fmt.Sprintf("xid %s not found ", xid))
-				sendErrorResponse(ResourceChangedError, err.Error())
-				return
+			hasNotCommitted := false
+			for _, b := range otherBranches {
+				if b.State != int(pb.TxState_COMMITTED) {
+					hasNotCommitted = true
+					break
+				}
 			}
-			_, err = db.UpdateGlobalTxState(ctx, tx, xid, globalTx.Version, globalTx.State, int(pb.TxState_COMMITTED))
-			if err != nil {
-				sendErrorResponse(ServerError, err.Error())
-				return
+			if !hasNotCommitted {
+				// 这个xid的各branches都committed了
+				_, err = db.UpdateGlobalTxState(ctx, tx, xid, globalTx.Version, globalTx.State, int(pb.TxState_COMMITTED))
+				if err != nil {
+					return sendErrorResponse(ServerError, err.Error())
+				}
+				globalTx.State = int(pb.TxState_COMMITTED)
 			}
-			globalTx.State = int(pb.TxState_COMMITTED)
 		}
 	} else if state == pb.TxState_COMPENSATION_ERROR {
-		// TODO: 如果分支事务补偿任务失败次数超过阈值，则这个branchTx要标记为补偿failed，并且xid也要标记为补偿failed
-		// TODO: 为了幂等性，每次尝试补偿都要有一个不同的jobId
+		// 如果分支事务补偿任务失败次数超过阈值，则这个branchTx要标记为补偿failed，并且xid也要标记为补偿failed
+		// 为了幂等性，每次尝试补偿都要有一个不同的jobId
 		log.Printf("COMPENSATION_ERROR of jobId %s", jobId)
-		// TODO: 数据库记录下每次补偿失败的记录，从而知道branch的补偿失败的次数和各jobId
+		// 补偿失败要记录日志，如果jobId没重复的话
+		compensationFailLog, err := db.FindBranchTxCompensationFailLogByJobId(ctx, tx, jobId)
+		if err != nil {
+			return sendErrorResponse(ServerError, err.Error())
+		}
+		// TODO: 重构这段代码，这里if嵌套太深
+		if compensationFailLog == nil {
+			var compensationFailLogId uint64
+			compensationFailLogId, err = db.InsertBranchTxCompensationFailLog(ctx, tx,
+				xid, branchTxId, jobId, errorReason)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
+			if compensationFailLogId > 0 {
+				// 插入补偿失败日志成功，说明没有并发重复插入
+				branchTx.CompensationFailTimes += 1
+				rowsChanged, err = db.UpdateBranchTxCompensationFailTimes(
+					ctx, tx, branchTx.Id, branchTx.Version, branchTx.CompensationFailTimes)
+				if err != nil {
+					return sendErrorResponse(ServerError, err.Error())
+				}
+				if rowsChanged > 0 {
+					branchTx.Version += 1
+					if branchTx.CompensationFailTimes > defaultBranchTxCompensationMaxFailTimes {
+						rowsChanged, err = db.UpdateBranchTxState(ctx, tx, xid, branchTxId,
+							branchTx.Version, branchTx.State, int(pb.TxState_COMPENSATION_FAIL))
+						if err != nil {
+							return sendErrorResponse(ServerError, err.Error())
+						}
+						if rowsChanged > 0 {
+							branchTx.Version += 1
+							branchTx.State = int(pb.TxState_COMPENSATION_FAIL)
+							rowsChanged, err = db.UpdateGlobalTxState(ctx, tx, xid, globalTx.Version,
+								globalTx.State, int(pb.TxState_COMPENSATION_FAIL))
+							if err != nil {
+								return sendErrorResponse(ServerError, err.Error())
+							}
+							if rowsChanged > 0 {
+								globalTx.State = int(pb.TxState_COMPENSATION_FAIL)
+								globalTx.Version += 1
+							}
+						}
+					}
+				}
+			}
+		}
 	} else if state == pb.TxState_COMPENSATION_DONE {
 		// 如果这个xid的其他branches也都补偿done了，则这个xid要改成补偿done
 		var otherBranches []*db.BranchTxEntity
 		otherBranches, err = getOtherBranches()
 		if err != nil {
-			sendErrorResponse(ServerError, err.Error())
-			return
+			return sendErrorResponse(ServerError, err.Error())
 		}
 		hasNotCompensationDone := false
 		for _, b := range otherBranches {
@@ -403,29 +446,16 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 		}
 		if !hasNotCompensationDone {
 			// 这个xid的各branches都COMPENSATION_DONE了
-			var globalTx *db.GlobalTxEntity
-			globalTx, err = db.FindGlobalTxByXid(ctx, dbConn, xid)
-			if err != nil {
-				sendErrorResponse(ServerError, err.Error())
-				return
-			}
-			if globalTx == nil {
-				err = errors.New(fmt.Sprintf("xid %s not found ", xid))
-				sendErrorResponse(ResourceChangedError, err.Error())
-				return
-			}
 			_, err = db.UpdateGlobalTxState(ctx, tx, xid, globalTx.Version, globalTx.State, int(pb.TxState_COMPENSATION_DONE))
 			if err != nil {
-				sendErrorResponse(ServerError, err.Error())
-				return
+				return sendErrorResponse(ServerError, err.Error())
 			}
 			globalTx.State = int(pb.TxState_COMPENSATION_DONE)
 		}
 	}
 
-	res = &pb.SubmitBranchTransactionStateReply{
+	return &pb.SubmitBranchTransactionStateReply{
 		Code:  Ok,
 		State: pb.TxState(branchTx.State),
-	}
-	return
+	}, nil
 }

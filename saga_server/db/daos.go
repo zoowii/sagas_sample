@@ -70,7 +70,7 @@ const (
 	branchTxCompensationFailLogTableSelectColumnsSql = "id, created_at, updated_at, xid, branch_tx_id, job_id, `reason`"
 )
 
-func FindGlobalTxByXid(ctx context.Context, db *sql.DB, xid string) (result *GlobalTxEntity, err error) {
+func FindGlobalTxByXidOrNull(ctx context.Context, db *sql.DB, xid string) (result *GlobalTxEntity, err error) {
 	s := "select " + globalTxTableSelectColumnsSql +
 		" from global_tx where xid = ? order by id asc limit 1"
 	row := db.QueryRowContext(ctx, s, xid)

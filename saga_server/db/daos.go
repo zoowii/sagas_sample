@@ -53,6 +53,7 @@ func CreateBranchTx(ctx context.Context, db *sql.DB, record *BranchTxEntity) (br
 		return
 	}
 	_, err = stmt.ExecContext(ctx, record.BranchTxId, record.Xid, record.State, record.Version,
+		record.CompensationFailTimes,
 		record.NodeGroup, record.NodeService, record.NodeInstanceId,
 		record.BranchServiceKey, record.BranchCompensationServiceKey)
 	if err != nil {

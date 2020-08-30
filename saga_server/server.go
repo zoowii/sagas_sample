@@ -25,7 +25,7 @@ func main() {
 	grpcServer := grpc.NewServer()
 
 	// TODO: load config from config file or environment
-	dbUrl := "root:123456@tcp(127.0.0.1)/saga_server?charset=utf8&checkConnLiveness=true"
+	dbUrl := "root:123456@tcp(127.0.0.1)/saga_server?charset=utf8&checkConnLiveness=true&parseTime=true"
 
 	sagaApp, err := app.NewApplicationContext(app.SetDbUrl(dbUrl))
 	if err != nil {

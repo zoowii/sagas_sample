@@ -57,6 +57,29 @@ func findGlobalTxOrError(ctx context.Context, dbConn *sql.DB,
 }
 
 /**
+ * 提交CompensationDoing状态的全局事务状态时的回调逻辑
+ */
+func logicWhenSubmitGlobalTxCompensationDoing(ctx context.Context, dbConn *sql.DB, tx *sql.Tx,
+	globalTx *db.GlobalTxEntity, oldState pb.TxState) (err error) {
+	// 如果oldState是processing，则将processing和committed的branchTxs状态改成COMPENSATION_DOING
+	if oldState != pb.TxState_PROCESSING {
+		return
+	}
+	xid := globalTx.Xid
+	_, err = db.UpdateBranchTxsByXidFromStateToState(ctx, tx, xid,
+							int(pb.TxState_PROCESSING), int(pb.TxState_COMPENSATION_DOING))
+	if err != nil {
+		return
+	}
+	_, err = db.UpdateBranchTxsByXidFromStateToState(ctx, tx, xid,
+		int(pb.TxState_COMMITTED), int(pb.TxState_COMPENSATION_DOING))
+	if err != nil {
+		return
+	}
+	return
+}
+
+/**
  * 提交committed的分支事务状态时的回调逻辑
  */
 func logicWhenSubmitBranchTxCommitted(ctx context.Context, dbConn *sql.DB, tx *sql.Tx,

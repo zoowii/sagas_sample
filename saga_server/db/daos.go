@@ -236,4 +236,19 @@ func InsertBranchTxCompensationFailLog(ctx context.Context, tx *sql.Tx,
 	return
 }
 
-// TODO
+// 修改xid下的分支事务，把状态{oldState}的改成状态{newState}
+func UpdateBranchTxsByXidFromStateToState(ctx context.Context, tx *sql.Tx,
+	xid string, oldState int, newState int) (rowsAffected int64, err error) {
+	stmt, err := tx.PrepareContext(ctx, "update branch_tx " +
+		" set `state` = ?, `version` = `version` + 1 " +
+		" where xid = ? and `state` = ?")
+	if err != nil {
+		return
+	}
+	sqlResult, err := stmt.ExecContext(ctx, newState, xid, oldState)
+	if err != nil {
+		return
+	}
+	rowsAffected, err = sqlResult.RowsAffected()
+	return
+}

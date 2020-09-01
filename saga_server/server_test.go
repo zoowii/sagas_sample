@@ -22,13 +22,7 @@ var (
 	}
 )
 
-func TestServerCreateGlobalTransaction(t *testing.T) {
-	cc, err := grpc.Dial(address, grpc.WithInsecure())
-	if err != nil {
-		t.Fatalf("grpc dial err: %v", err)
-		return
-	}
-	client := api.NewSagaServerClient(cc)
+func createTestGlobalTxOrPanic(t *testing.T, client api.SagaServerClient) (xid string) {
 	ctx := context.Background()
 	reply, err := client.CreateGlobalTransaction(ctx, &api.CreateGlobalTransactionRequest{
 		Node:          testNode,
@@ -39,7 +33,19 @@ func TestServerCreateGlobalTransaction(t *testing.T) {
 		t.Fatalf("CreateGlobalTransaction err: %v", err)
 		return
 	}
-	log.Printf("create global tx reply: %v", reply)
+	xid = reply.Xid
+	return
+}
+
+func TestServerCreateGlobalTransaction(t *testing.T) {
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	xid := createTestGlobalTxOrPanic(t, client)
+	log.Printf("create global tx xid: %s", xid)
 }
 
 // test create branch step
@@ -52,17 +58,7 @@ func TestServerCreateBranchTransaction(t *testing.T) {
 	client := api.NewSagaServerClient(cc)
 	ctx := context.Background()
 	// create global tx first
-	reply, err := client.CreateGlobalTransaction(ctx, &api.CreateGlobalTransactionRequest{
-		Node:          testNode,
-		ExpireSeconds: 60,
-		Extra:         "test global tx",
-	})
-	if err != nil {
-		t.Fatalf("CreateGlobalTransaction err: %v", err)
-		return
-	}
-	log.Printf("create global tx reply: %v", reply)
-	xid := reply.Xid
+	xid := createTestGlobalTxOrPanic(t, client)
 
 	createBranchTxReply, err := client.CreateBranchTransaction(ctx, &api.CreateBranchTransactionRequest{
 		Node: testNode,
@@ -89,7 +85,33 @@ func TestServerCreateBranchTransaction(t *testing.T) {
 	log.Printf("query global tx detail reply: %v", globalTxDetailReply)
 }
 
-// TODO: submit global state(all states)
+// submit global state(all states)
 
-// TODO: submit branch state(all states)
+func TestServerSubmitGlobalTxFailState(t *testing.T) {
+	// TODO
+}
 
+func TestServerSubmitGlobalTxCompensationDoingState(t *testing.T) {
+	// TODO
+}
+
+func TestServerSubmitGlobalTxCommittedState(t *testing.T) {
+	// TODO
+}
+
+// submit branch state(all states)
+
+func TestServerSubmitBranchTxCompensationDoingState(t *testing.T) {
+
+}
+func TestServerSubmitBranchTxCommittedState(t *testing.T) {
+	// TODO
+}
+
+func TestServerSubmitBranchTxCompensationErrorState(t *testing.T)  {
+	// TODO
+}
+
+func TestServerSubmitBranchTxCompensationDoneState(t *testing.T) {
+	// TODO
+}

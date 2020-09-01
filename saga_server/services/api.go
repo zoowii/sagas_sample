@@ -202,13 +202,13 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 }
 
 func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,
-	req *pb.SubmitGlobalTransactionStateRequest) (res *pb.SubmitGlobalTransactionStateReply, err error) {
+	req *pb.SubmitGlobalTransactionStateRequest) (*pb.SubmitGlobalTransactionStateReply, error) {
 	log.Println("SubmitGlobalTransactionState")
-	sendErrorResponse := func(code ReplyErrorCodes, msg string) {
-		res = &pb.SubmitGlobalTransactionStateReply{
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.SubmitGlobalTransactionStateReply, error) {
+		return &pb.SubmitGlobalTransactionStateReply{
 			Code:  code,
 			Error: msg,
-		}
+		}, nil
 	}
 	dbConn := s.dbConn
 	xid := req.Xid
@@ -217,28 +217,23 @@ func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,
 	oldVersion := req.OldVersion
 	globalTx, err := db.FindGlobalTxByXidOrNull(ctx, dbConn, xid)
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	if globalTx == nil {
-		sendErrorResponse(NotFoundError, fmt.Sprintf("xid %s not found", xid))
-		return
+		return sendErrorResponse(NotFoundError, fmt.Sprintf("xid %s not found", xid))
 	}
 	if globalTx.State != int(oldState) || globalTx.Version != oldVersion {
-		sendErrorResponse(ResourceChangedError, fmt.Sprintf("xid %s dirty change", xid))
-		return
+		return sendErrorResponse(ResourceChangedError, fmt.Sprintf("xid %s dirty change", xid))
 	}
 	if globalTx.State == int(state) {
-		res = &pb.SubmitGlobalTransactionStateReply{
+		return &pb.SubmitGlobalTransactionStateReply{
 			Code:  Ok,
 			State: state,
-		}
-		return
+		}, nil
 	}
 	tx, err := dbConn.BeginTx(ctx, nil)
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	defer func() {
 		if err != nil {
@@ -249,28 +244,31 @@ func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,
 	}()
 	rowsChanged, err := db.UpdateGlobalTxState(ctx, tx, xid, oldVersion, globalTx.State, int(state))
 	if err != nil {
-		sendErrorResponse(ServerError, err.Error())
-		return
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	globalTx.State = int(state)
 	if rowsChanged < 1 {
-		sendErrorResponse(ResourceChangedError, fmt.Sprintf("xid %s not change, maybe version expired", xid))
-		return
+		return sendErrorResponse(ResourceChangedError, fmt.Sprintf("xid %s not change, maybe version expired", xid))
 	}
 	if state == pb.TxState_COMMITTED {
 		// 如果全局事务标记为committed，各对应分支事务还没结束的也要这么标记
 		_, err = db.UpdateBranchesStateByXid(ctx, tx, xid, int(state))
 		if err != nil {
-			sendErrorResponse(ServerError, err.Error())
-			return
+			return sendErrorResponse(ServerError, err.Error())
+		}
+	} else if state == pb.TxState_COMPENSATION_DOING {
+		// 全局事务回滚
+		err = logicWhenSubmitGlobalTxCompensationDoing(ctx, dbConn, tx,
+			globalTx, oldState)
+		if err != nil {
+			return sendErrorResponse(ServerError, err.Error())
 		}
 	}
 
-	res = &pb.SubmitGlobalTransactionStateReply{
+	return &pb.SubmitGlobalTransactionStateReply{
 		Code:  Ok,
 		State: state,
-	}
-	return
+	}, nil
 }
 
 func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,

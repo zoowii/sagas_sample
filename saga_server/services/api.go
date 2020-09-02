@@ -250,18 +250,31 @@ func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,
 	if rowsChanged < 1 {
 		return sendErrorResponse(ResourceChangedError, fmt.Sprintf("xid %s not change, maybe version expired", xid))
 	}
-	if state == pb.TxState_COMMITTED {
-		// 如果全局事务标记为committed，各对应分支事务还没结束的也要这么标记
-		_, err = db.UpdateBranchesStateByXid(ctx, tx, xid, int(state))
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
+	switch state {
+	case pb.TxState_COMMITTED:
+		{
+			// 如果全局事务标记为committed，各对应分支事务还没结束的也要这么标记. 需要全局事务发起方在全局事务都committed后才把此全局事务标记为committed
+			_, err = db.UpdateBranchesStateByXid(ctx, tx, xid, int(state))
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
 		}
-	} else if state == pb.TxState_COMPENSATION_DOING {
-		// 全局事务回滚
-		err = logicWhenSubmitGlobalTxCompensationDoing(ctx, dbConn, tx,
-			globalTx, oldState)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
+	case pb.TxState_COMPENSATION_DOING:
+		{
+			// 全局事务回滚
+			err = logicWhenSubmitGlobalTxCompensationDoing(ctx, dbConn, tx,
+				globalTx, oldState)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
+		}
+	case pb.TxState_COMPENSATION_FAIL:
+		{
+			// 标记全局事务失败了
+			err = logicWhenSubmitGlobalTxCompensationFail(ctx, dbConn, tx, globalTx, oldState)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
 		}
 	}
 
@@ -334,20 +347,27 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 		return sendErrorResponse(ServerError, err.Error())
 	}
 
-	if state == pb.TxState_COMMITTED {
-		err = logicWhenSubmitBranchTxCommitted(ctx, dbConn, tx, globalTx, branchTx)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
+	switch state {
+	case pb.TxState_COMMITTED:
+		{
+			err = logicWhenSubmitBranchTxCommitted(ctx, dbConn, tx, globalTx, branchTx)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
 		}
-	} else if state == pb.TxState_COMPENSATION_ERROR {
-		err = logicWhenSubmitBranchTxCompensationError(ctx, dbConn, tx, globalTx, branchTx, jobId, errorReason)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
+	case pb.TxState_COMPENSATION_ERROR:
+		{
+			err = logicWhenSubmitBranchTxCompensationError(ctx, dbConn, tx, globalTx, branchTx, jobId, errorReason)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
 		}
-	} else if state == pb.TxState_COMPENSATION_DONE {
-		err = logicWhenSubmitBranchTxCompensationDone(ctx, dbConn, tx, globalTx, branchTx)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
+	case pb.TxState_COMPENSATION_DONE:
+		{
+			err = logicWhenSubmitBranchTxCompensationDone(ctx, dbConn, tx, globalTx, branchTx)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
 		}
 	}
 

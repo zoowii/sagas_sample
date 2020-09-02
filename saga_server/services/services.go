@@ -67,7 +67,7 @@ func logicWhenSubmitGlobalTxCompensationDoing(ctx context.Context, dbConn *sql.D
 	}
 	xid := globalTx.Xid
 	_, err = db.UpdateBranchTxsByXidFromStateToState(ctx, tx, xid,
-							int(pb.TxState_PROCESSING), int(pb.TxState_COMPENSATION_DOING))
+		int(pb.TxState_PROCESSING), int(pb.TxState_COMPENSATION_DOING))
 	if err != nil {
 		return
 	}
@@ -75,6 +75,26 @@ func logicWhenSubmitGlobalTxCompensationDoing(ctx context.Context, dbConn *sql.D
 		int(pb.TxState_COMMITTED), int(pb.TxState_COMPENSATION_DOING))
 	if err != nil {
 		return
+	}
+	return
+}
+
+/**
+ * 提交CompensationFail状态的全局事务状态时的回调逻辑
+ */
+func logicWhenSubmitGlobalTxCompensationFail(ctx context.Context, dbConn *sql.DB, tx *sql.Tx,
+	globalTx *db.GlobalTxEntity, oldState pb.TxState) (err error) {
+	// 只有各分支事务状态都是已经CompensationFail的全局事务才能标记为CompensationFail
+	xid := globalTx.Xid
+	branches, err := db.FindAllBranchTxsByXid(ctx, dbConn, xid)
+	if err != nil {
+		return
+	}
+	for _, b := range branches {
+		if b.State != int(pb.TxState_COMPENSATION_FAIL) {
+			err = errors.New("not all branches fail, can't mark this global tx fail")
+			return
+		}
 	}
 	return
 }

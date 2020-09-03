@@ -139,6 +139,22 @@ func (s *SagaServerService) CreateBranchTransaction(ctx context.Context,
 	return
 }
 
+func branchTxToDetailInPb(branchTx *db.BranchTxEntity) *pb.TransactionBranchDetail {
+	return &pb.TransactionBranchDetail{
+		BranchId: branchTx.BranchTxId,
+		Node: &pb.NodeInfo{
+			Group:      branchTx.NodeGroup,
+			Service:    branchTx.NodeService,
+			InstanceId: branchTx.NodeInstanceId,
+		},
+		State:                        pb.TxState(branchTx.State),
+		Version:                      branchTx.Version,
+		CompensationFailTimes:        branchTx.CompensationFailTimes,
+		BranchServiceKey:             branchTx.BranchServiceKey,
+		BranchCompensationServiceKey: branchTx.BranchCompensationServiceKey,
+	}
+}
+
 func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 	req *pb.QueryGlobalTransactionDetailRequest) (res *pb.QueryGlobalTransactionDetailReply, err error) {
 	log.Println("QueryGlobalTransactionDetail")
@@ -170,19 +186,7 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 
 	branchDetails := make([]*pb.TransactionBranchDetail, 0)
 	for _, branchTx := range branchTxs {
-		detail := &pb.TransactionBranchDetail{
-			BranchId: branchTx.BranchTxId,
-			Node: &pb.NodeInfo{
-				Group:      branchTx.NodeGroup,
-				Service:    branchTx.NodeService,
-				InstanceId: branchTx.NodeInstanceId,
-			},
-			State:                        pb.TxState(branchTx.State),
-			Version:                      branchTx.Version,
-			CompensationFailTimes:        branchTx.CompensationFailTimes,
-			BranchServiceKey:             branchTx.BranchServiceKey,
-			BranchCompensationServiceKey: branchTx.BranchCompensationServiceKey,
-		}
+		detail := branchTxToDetailInPb(branchTx)
 		branchDetails = append(branchDetails, detail)
 	}
 	res = &pb.QueryGlobalTransactionDetailReply{
@@ -199,6 +203,44 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 		Branches: branchDetails,
 	}
 	return
+}
+
+func (s *SagaServerService) QueryBranchTransactionDetail(ctx context.Context,
+	req *pb.QueryBranchTransactionDetailRequest) (*pb.QueryBranchTransactionDetailReply, error) {
+	log.Println("QueryBranchTransactionDetail")
+	dbConn := s.dbConn
+	branchTxId := req.BranchId
+
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.QueryBranchTransactionDetailReply, error) {
+		return &pb.QueryBranchTransactionDetailReply{
+			Code:  code,
+			Error: msg,
+		}, nil
+	}
+
+	var err error
+	branchTx, err := db.FindBranchTxByBranchTxId(ctx, dbConn, branchTxId)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	xid := branchTx.Xid
+
+	globalTx, err := db.FindGlobalTxByXidOrNull(ctx, dbConn, xid)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	if globalTx == nil {
+		return sendErrorResponse(ServerError, fmt.Sprintf("branchTx's xid %s not found", xid))
+	}
+
+	detail := branchTxToDetailInPb(branchTx)
+
+	return &pb.QueryBranchTransactionDetailReply{
+		Code:          Ok,
+		Xid:           xid,
+		Detail:        detail,
+		GlobalTxState: pb.TxState(globalTx.State),
+	}, nil
 }
 
 func (s *SagaServerService) SubmitGlobalTransactionState(ctx context.Context,

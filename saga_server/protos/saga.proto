@@ -9,6 +9,7 @@ service SagaServer {
   rpc CreateGlobalTransaction (CreateGlobalTransactionRequest) returns (CreateGlobalTransactionReply);
   rpc CreateBranchTransaction (CreateBranchTransactionRequest) returns (CreateBranchTransactionReply);
   rpc QueryGlobalTransactionDetail (QueryGlobalTransactionDetailRequest) returns (QueryGlobalTransactionDetailReply);
+  rpc QueryBranchTransactionDetail (QueryBranchTransactionDetailRequest) returns (QueryBranchTransactionDetailReply);
   rpc SubmitGlobalTransactionState (SubmitGlobalTransactionStateRequest) returns (SubmitGlobalTransactionStateReply);
   rpc SubmitBranchTransactionState (SubmitBranchTransactionStateRequest) returns (SubmitBranchTransactionStateReply);
 }
@@ -76,6 +77,18 @@ message QueryGlobalTransactionDetailReply {
   TxState state = 6;
   bool endBranches = 7;
   int32 version = 8;
+}
+
+message QueryBranchTransactionDetailRequest {
+  string branchId = 1;
+}
+
+message QueryBranchTransactionDetailReply {
+  int32 code = 1; // code == 0 means success
+  string error = 2;
+  string xid = 3;
+  TransactionBranchDetail detail = 4;
+  TxState globalTxState = 5;
 }
 
 message SubmitGlobalTransactionStateRequest {

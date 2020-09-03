@@ -77,6 +77,20 @@ func queryTestGlobalTxDetail(t *testing.T, client api.SagaServerClient,
 	return
 }
 
+func queryTestBranchTxDetail(t *testing.T, client api.SagaServerClient,
+	branchTxId string) (reply *api.QueryBranchTransactionDetailReply) {
+	ctx := context.Background()
+	reply, err := client.QueryBranchTransactionDetail(ctx,
+		&api.QueryBranchTransactionDetailRequest{
+			BranchId: branchTxId,
+		})
+	if err != nil {
+		t.Fatalf("QueryBranchTransactionDetail err: %v", err)
+		return
+	}
+	return
+}
+
 func TestServerCreateGlobalTransaction(t *testing.T) {
 	cc, err := grpc.Dial(address, grpc.WithInsecure())
 	if err != nil {
@@ -260,7 +274,7 @@ func TestServerSubmitGlobalTxCommittedState(t *testing.T) {
 	}
 	log.Printf("submitGlobalTxStateReply: %v", submitGlobalTxStateReply)
 	if submitGlobalTxStateReply.Code != services.Ok {
-		log.Fatalf("TestServerSubmitGlobalTxCompensationDoingState error")
+		log.Fatalf("TestServerSubmitGlobalTxFailState error")
 		return
 	}
 	globalTxDetailAfterSubmitState := queryTestGlobalTxDetail(t, client, xid)
@@ -274,17 +288,153 @@ func TestServerSubmitGlobalTxCommittedState(t *testing.T) {
 // submit branch state(all states)
 
 func TestServerSubmitBranchTxCompensationDoingState(t *testing.T) {
-	// TODO
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	ctx := context.Background()
+	// create global tx first
+	xid := createTestGlobalTxOrPanic(t, client)
+
+	// create a branch tx
+	branchTxId := createTestBranchTxOrPanic(t, client, xid, 1)
+	log.Printf("new branch tx id: %v", branchTxId)
+
+	branchTx := queryTestBranchTxDetail(t, client, branchTxId)
+
+	submitBranchTxStateReply, err := client.SubmitBranchTransactionState(ctx,
+		&api.SubmitBranchTransactionStateRequest{
+			Xid:        xid,
+			BranchId:   branchTxId,
+			OldState:   branchTx.Detail.State,
+			State:      api.TxState_COMPENSATION_DOING,
+			OldVersion: branchTx.Detail.Version,
+			JobId:      generateNewJobId(),
+		})
+	if err != nil {
+		log.Fatalf("TestServerSubmitBranchTxCompensationDoingState error")
+		return
+	}
+	log.Printf("submitBranchTxStateReply: %v", submitBranchTxStateReply)
+	branchTxAfterChange := queryTestBranchTxDetail(t, client, branchTxId)
+	if branchTxAfterChange.Detail.State != api.TxState_COMPENSATION_DOING {
+		log.Fatalf("TestServerSubmitBranchTxCompensationDoingState state invalid after submit")
+		return
+	}
 }
 
 func TestServerSubmitBranchTxCommittedState(t *testing.T) {
-	// TODO
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	ctx := context.Background()
+	// create global tx first
+	xid := createTestGlobalTxOrPanic(t, client)
+
+	// create a branch tx
+	branchTxId := createTestBranchTxOrPanic(t, client, xid, 1)
+	log.Printf("new branch tx id: %v", branchTxId)
+
+	branchTx := queryTestBranchTxDetail(t, client, branchTxId)
+
+	submitBranchTxStateReply, err := client.SubmitBranchTransactionState(ctx,
+		&api.SubmitBranchTransactionStateRequest{
+			Xid:        xid,
+			BranchId:   branchTxId,
+			OldState:   branchTx.Detail.State,
+			State:      api.TxState_COMMITTED,
+			OldVersion: branchTx.Detail.Version,
+			JobId:      generateNewJobId(),
+		})
+	if err != nil {
+		log.Fatalf("TestServerSubmitBranchTxCommittedState error")
+		return
+	}
+	log.Printf("submitBranchTxStateReply: %v", submitBranchTxStateReply)
+	branchTxAfterChange := queryTestBranchTxDetail(t, client, branchTxId)
+	if branchTxAfterChange.Detail.State != api.TxState_COMMITTED {
+		log.Fatalf("TestServerSubmitBranchTxCommittedState state invalid after submit")
+		return
+	}
 }
 
 func TestServerSubmitBranchTxCompensationErrorState(t *testing.T) {
-	// TODO
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	ctx := context.Background()
+	// create global tx first
+	xid := createTestGlobalTxOrPanic(t, client)
+
+	// create a branch tx
+	branchTxId := createTestBranchTxOrPanic(t, client, xid, 1)
+	log.Printf("new branch tx id: %v", branchTxId)
+
+	branchTx := queryTestBranchTxDetail(t, client, branchTxId)
+
+	submitBranchTxStateReply, err := client.SubmitBranchTransactionState(ctx,
+		&api.SubmitBranchTransactionStateRequest{
+			Xid:        xid,
+			BranchId:   branchTxId,
+			OldState:   branchTx.Detail.State,
+			State:      api.TxState_COMPENSATION_ERROR,
+			OldVersion: branchTx.Detail.Version,
+			JobId:      generateNewJobId(),
+		})
+	if err != nil {
+		log.Fatalf("TestServerSubmitBranchTxCompensationErrorState error")
+		return
+	}
+	log.Printf("submitBranchTxStateReply: %v", submitBranchTxStateReply)
+	branchTxAfterChange := queryTestBranchTxDetail(t, client, branchTxId)
+	if branchTxAfterChange.Detail.State != api.TxState_COMPENSATION_ERROR {
+		log.Fatalf("TestServerSubmitBranchTxCompensationErrorState state invalid after submit")
+		return
+	}
 }
 
 func TestServerSubmitBranchTxCompensationDoneState(t *testing.T) {
-	// TODO
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	ctx := context.Background()
+	// create global tx first
+	xid := createTestGlobalTxOrPanic(t, client)
+
+	// create a branch tx
+	branchTxId := createTestBranchTxOrPanic(t, client, xid, 1)
+	log.Printf("new branch tx id: %v", branchTxId)
+
+	branchTx := queryTestBranchTxDetail(t, client, branchTxId)
+
+	submitBranchTxStateReply, err := client.SubmitBranchTransactionState(ctx,
+		&api.SubmitBranchTransactionStateRequest{
+			Xid:        xid,
+			BranchId:   branchTxId,
+			OldState:   branchTx.Detail.State,
+			State:      api.TxState_COMPENSATION_DONE,
+			OldVersion: branchTx.Detail.Version,
+			JobId:      generateNewJobId(),
+		})
+	if err != nil {
+		log.Fatalf("TestServerSubmitBranchTxCompensationDoneState error")
+		return
+	}
+	log.Printf("submitBranchTxStateReply: %v", submitBranchTxStateReply)
+	branchTxAfterChange := queryTestBranchTxDetail(t, client, branchTxId)
+	if branchTxAfterChange.Detail.State != api.TxState_COMPENSATION_DONE {
+		log.Fatalf("TestServerSubmitBranchTxCompensationDoneState state invalid after submit")
+		return
+	}
 }

@@ -6,6 +6,8 @@ using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
 
 using BusinessApi.Sagas;
+using Microsoft.Extensions.Logging;
+using commons.services.Saga;
 
 namespace BusinessApi.Controllers
 {
@@ -13,11 +15,20 @@ namespace BusinessApi.Controllers
     [ApiController]
     public class OrderController : ControllerBase
     {
+        private readonly ILogger<OrderController> _logger;
         private readonly CreateOrderSaga _createOrderSaga;
+        private readonly GrpcClientsHolder _grpcClientsHolder;
+        private readonly OrderService _orderService;
 
-        public OrderController(CreateOrderSaga createOrderSaga)
+        public OrderController(ILogger<OrderController> logger, CreateOrderSaga createOrderSaga,
+            GrpcClientsHolder grpcClientsHolder,
+            OrderService orderService
+            )
         {
+            this._logger = logger;
             this._createOrderSaga = createOrderSaga;
+            this._grpcClientsHolder = grpcClientsHolder;
+            this._orderService = orderService;
         }
 
         // GET: api/Order
@@ -51,11 +62,85 @@ namespace BusinessApi.Controllers
                 }
             };
             await _createOrderSaga.Start(form);
-            if(form.RejectionReason != null)
+            if (form.RejectionReason != null)
             {
                 return form.RejectionReason.ToString();
             }
             return form.OrderId;
+        }
+
+        /**
+         * 这个接口是使用saga中心协作者管理动态saga steps的例子，不需要固定一个saga的步骤，中途也可以做其他业务逻辑
+         */
+        [HttpGet("CreateOrder2")]
+        public async Task<string> CreateOrder2([FromQuery] string goodsName, [FromQuery] string customerName, [FromQuery] Int64 amount)
+        {
+            // TODO: 这个改成中心saga协调者方式注册xid和branch tx的方式
+
+            var collaborator = _grpcClientsHolder.SagaCollaborator;
+
+
+            var form = new CreateOrderSagaData
+            {
+                CreateOrder = new order_service.CreateOrderRequest
+                {
+                    CustomerName = customerName,
+                    GoodsName = goodsName,
+                    Amount = amount
+                }
+            };
+
+            SagaContext<CreateOrderSagaData> sagaContext = null;
+            try
+            {
+                var xid = await collaborator.CreateGlobalTxAsync();
+                _logger.LogInformation($"created xid {xid} in service {nameof(CreateOrder2)}");
+                // TODO: bind xid to current request context
+
+                // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
+                // 从而包装好分支事务的注册
+                sagaContext = new SagaContext<CreateOrderSagaData>(xid, collaborator, _logger);
+                
+                await sagaContext.InvokeAsync(_orderService.createOrder, form);
+                await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);
+                await sagaContext.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
+                await sagaContext.InvokeAsync(_orderService.approveOrder, form);
+                await sagaContext.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
+                await sagaContext.InvokeAsync(_createOrderSaga.addOrderHistory, form);
+
+                await sagaContext.Commit();
+
+                return form.OrderId;
+            }
+            catch (Exception e)
+            {
+                _logger.LogError("CreateOrder2 error", e);
+                if (sagaContext != null)
+                {
+                    await sagaContext.Rollback();
+                }
+                if (form.RejectionReason != null)
+                {
+                    return form.RejectionReason.ToString();
+                }
+                return e.Message;
+            }
+
+            //var form = new CreateOrderSagaData
+            //{
+            //    CreateOrder = new order_service.CreateOrderRequest
+            //    {
+            //        CustomerName = customerName,
+            //        GoodsName = goodsName,
+            //        Amount = amount
+            //    }
+            //};
+            //await _createOrderSaga.Start(form);
+            //if (form.RejectionReason != null)
+            //{
+            //    return form.RejectionReason.ToString();
+            //}
+            //return form.OrderId;
         }
 
     }

@@ -9,10 +9,12 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using System.Net.Http;
 using merchant_service;
 using order_service;
 using history_service;
-using System.Net.Http;
+using saga_server;
+using commons.services.Saga;
 
 namespace BusinessApi.Tasks
 {
@@ -30,7 +32,7 @@ namespace BusinessApi.Tasks
             this._consulClient = consulClient;
         }
 
-        private async Task<string> getGrpcServiceEndpoint(string serviceName, string scheme="https")
+        private async Task<string> getGrpcServiceEndpoint(string serviceName, string scheme = "https")
         {
             var sResp = await _consulClient.Catalog.Service(serviceName);
             if (sResp.Response.Count() < 1)
@@ -78,6 +80,22 @@ namespace BusinessApi.Tasks
         {
             try
             {
+
+                {
+                    var url = "grpc://127.0.0.1:9009"; // TODO: get saga server endpoint from consul
+                    var channel = createGrpcChannelFromUrl(url);
+                    _grpcClientsHolder.SagaServerClient = new SagaServer.SagaServerClient(channel);
+
+                    // TODO: get node info from config
+                    var nodeInfo = new NodeInfo()
+                    {
+                        Group = "example",
+                        Service = "BusinessApi",
+                        InstanceId = "0"
+                    };
+                    _grpcClientsHolder.SagaCollaborator = new SagaCollaborator(_grpcClientsHolder.SagaServerClient, nodeInfo);
+                }
+
                 {
                     var serviceName = "OrderService";
                     var url = await getGrpcServiceEndpoint(serviceName);
@@ -105,6 +123,8 @@ namespace BusinessApi.Tasks
                     var channel = createGrpcChannelFromUrl(url);
                     _grpcClientsHolder.HistoryClient = new History.HistoryClient(channel);
                 }
+
+
                 _logger.LogInformation($"grpc services clients inited");
             }
             catch (Exception e)

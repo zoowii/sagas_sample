@@ -6,6 +6,8 @@ using customer_service;
 using order_service;
 using merchant_service;
 using history_service;
+using saga_server;
+using commons.services.Saga;
 
 
 namespace BusinessApi
@@ -18,5 +20,9 @@ namespace BusinessApi
         public Merchant.MerchantClient MerchantClient { get; set; }
 
         public History.HistoryClient HistoryClient { get; set; }
+
+        public SagaServer.SagaServerClient SagaServerClient { get; set; }
+
+        public SagaCollaborator SagaCollaborator { get; set; }
     }
 }

@@ -21,6 +21,9 @@ const (
 	NotFoundError        ReplyErrorCodes = 404
 )
 
+// TODO: branchId在创建时考虑增加上级branchId的层级关系
+// TODO: 增加获取最近未结束的xid，用来给saga worker处理
+
 type SagaServerService struct {
 	pb.UnimplementedSagaServerServer
 	application app.ApplicationContext

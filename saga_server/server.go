@@ -57,6 +57,8 @@ func main() {
 	}
 	pb.RegisterSagaServerServer(grpcServer, sagaServerService)
 
+	// TODO: register as service to consul
+
 	if err = grpcServer.Serve(listener); err != nil {
 		log.Fatalf("grpcServer.Serve err: %v", err)
 	}

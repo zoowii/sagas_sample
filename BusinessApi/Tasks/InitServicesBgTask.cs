@@ -82,7 +82,9 @@ namespace BusinessApi.Tasks
             {
 
                 {
-                    var url = "grpc://127.0.0.1:9009"; // TODO: get saga server endpoint from consul
+                    var serviceName = "SagaServer";
+                    var url = await getGrpcServiceEndpoint(serviceName);
+                    // var url = "grpc://127.0.0.1:9009";
                     var channel = createGrpcChannelFromUrl(url);
                     _grpcClientsHolder.SagaServerClient = new SagaServer.SagaServerClient(channel);
 

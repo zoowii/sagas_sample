@@ -2,6 +2,7 @@ package main
 
 import (
 	"errors"
+	"fmt"
 	pb "github.com/zoowii/saga_server/api"
 	"github.com/zoowii/saga_server/app"
 	services "github.com/zoowii/saga_server/services"
@@ -13,7 +14,7 @@ import (
 )
 
 const (
-	address = ":9009"
+	port = 9009
 	network = "tcp"
 )
 
@@ -26,6 +27,7 @@ func getDbUrl() (string, error) {
 }
 
 func main() {
+	address := fmt.Sprintf(":%d", port)
 	listener, err := net.Listen(network, address)
 	if err != nil {
 		log.Fatalf("net.Listen err: %v", err)
@@ -57,7 +59,8 @@ func main() {
 	}
 	pb.RegisterSagaServerServer(grpcServer, sagaServerService)
 
-	// TODO: register as service to consul
+	// register as service to consul
+	registerServer()
 
 	if err = grpcServer.Serve(listener); err != nil {
 		log.Fatalf("grpcServer.Serve err: %v", err)

@@ -438,3 +438,28 @@ func TestServerSubmitBranchTxCompensationDoneState(t *testing.T) {
 		return
 	}
 }
+
+func TestServerListGlobalTransactionsOfStates(t *testing.T) {
+	cc, err := grpc.Dial(address, grpc.WithInsecure())
+	if err != nil {
+		t.Fatalf("grpc dial err: %v", err)
+		return
+	}
+	client := api.NewSagaServerClient(cc)
+	ctx := context.Background()
+	listReply, err := client.ListGlobalTransactionsOfStates(ctx,
+		&api.ListGlobalTransactionsOfStatesRequest{
+		States: []api.TxState {
+			api.TxState_PROCESSING,
+			api.TxState_COMPENSATION_DOING,
+			api.TxState_COMPENSATION_ERROR,
+		},
+		Limit: 10,
+		})
+	if err != nil {
+		log.Fatalf("TestServerListGlobalTransactionsOfStates error")
+		return
+	}
+	log.Printf("list xids of states: %v\n", listReply)
+
+}

@@ -12,6 +12,7 @@ service SagaServer {
   rpc QueryBranchTransactionDetail (QueryBranchTransactionDetailRequest) returns (QueryBranchTransactionDetailReply);
   rpc SubmitGlobalTransactionState (SubmitGlobalTransactionStateRequest) returns (SubmitGlobalTransactionStateReply);
   rpc SubmitBranchTransactionState (SubmitBranchTransactionStateRequest) returns (SubmitBranchTransactionStateReply);
+  rpc ListGlobalTransactionsOfStates (ListGlobalTransactionsOfStatesRequest) returns (ListGlobalTransactionsOfStatesReply);
 }
 
 message NodeInfo {
@@ -118,4 +119,15 @@ message SubmitBranchTransactionStateReply {
   int32 code = 1; // code == 0 means success
   string error = 2;
   TxState state = 3; // 修改后的branch state
+}
+
+message ListGlobalTransactionsOfStatesRequest {
+  repeated TxState states = 1; // 满足其中任何一个的state的global txs都返回
+  int32 limit = 2;
+}
+
+message ListGlobalTransactionsOfStatesReply {
+  int32 code = 1; // code == 0 means success
+  string error = 2;
+  repeated string xids = 3;
 }

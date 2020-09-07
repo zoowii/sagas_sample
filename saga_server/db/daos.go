@@ -3,6 +3,9 @@ package db
 import (
 	"context"
 	"database/sql"
+	"fmt"
+	"github.com/zoowii/saga_server/api"
+	"strings"
 )
 
 func CreateGlobalTx(ctx context.Context, db *sql.DB, record *GlobalTxEntity) (xid string, err error) {
@@ -88,6 +91,44 @@ func FindGlobalTxByXidOrNull(ctx context.Context, db *sql.DB, xid string) (resul
 		return
 	}
 	result = entity
+	return
+}
+
+func placeholders(n int) string {
+	var b strings.Builder
+	for i := 0; i < n - 1; i++ {
+		b.WriteString("?,")
+	}
+	if n > 0 {
+		b.WriteString("?")
+	}
+	return b.String()
+}
+
+func FindXidsOfGlobalTxsByStates(ctx context.Context, db *sql.DB,
+	states []api.TxState, limit int32) (result []string, err error) {
+	s := fmt.Sprintf("select xid " +
+		" from global_tx where `state` in (%s) order by id desc limit ?", placeholders(len(states)))
+	args := make([]interface{}, len(states)+1)
+	for i, v := range states {
+		args[i] = v
+	}
+	args[len(args)-1] = limit
+	rows, err := db.QueryContext(ctx, s, args...)
+	if err != nil {
+		return
+	}
+	defer rows.Close()
+
+	result = make([]string, 0)
+	for rows.Next() {
+		var item string
+		err = rows.Scan(&item)
+		if err != nil {
+			return
+		}
+		result = append(result, item)
+	}
 	return
 }
 

@@ -125,22 +125,6 @@ namespace BusinessApi.Controllers
                 }
                 return e.Message;
             }
-
-            //var form = new CreateOrderSagaData
-            //{
-            //    CreateOrder = new order_service.CreateOrderRequest
-            //    {
-            //        CustomerName = customerName,
-            //        GoodsName = goodsName,
-            //        Amount = amount
-            //    }
-            //};
-            //await _createOrderSaga.Start(form);
-            //if (form.RejectionReason != null)
-            //{
-            //    return form.RejectionReason.ToString();
-            //}
-            //return form.OrderId;
         }
 
     }

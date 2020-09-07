@@ -14,8 +14,8 @@ import (
 type ReplyErrorCodes = int32
 
 const (
-	Ok                   ReplyErrorCodes = 0
-	NotImplemented       ReplyErrorCodes = 1
+	Ok ReplyErrorCodes = 0
+	//NotImplemented       ReplyErrorCodes = 1
 	ServerError          ReplyErrorCodes = 2
 	ResourceChangedError ReplyErrorCodes = 3
 	NotFoundError        ReplyErrorCodes = 404
@@ -23,6 +23,8 @@ const (
 
 // TODO: branchId在创建时考虑增加上级branchId的层级关系
 // TODO: 增加获取最近未结束的xid，用来给saga worker处理
+
+// TODO: saga worker对于超时未结束的xid进入补偿中状态。在补偿状态也超时了，进入失败状态
 
 type SagaServerService struct {
 	pb.UnimplementedSagaServerServer
@@ -419,5 +421,37 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	return &pb.SubmitBranchTransactionStateReply{
 		Code:  Ok,
 		State: pb.TxState(branchTx.State),
+	}, nil
+}
+
+func (s *SagaServerService) ListGlobalTransactionsOfStates(ctx context.Context,
+	req *pb.ListGlobalTransactionsOfStatesRequest) (*pb.ListGlobalTransactionsOfStatesReply, error) {
+	log.Println("ListGlobalTransactionsOfStates")
+	var err error
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.ListGlobalTransactionsOfStatesReply, error) {
+		return &pb.ListGlobalTransactionsOfStatesReply{
+			Code:  code,
+			Error: msg,
+		}, nil
+	}
+	dbConn := s.dbConn
+	states := req.States
+	limit := req.Limit
+	if limit <= 0 {
+		limit = 20
+	}
+	if len(states) < 1 {
+		return &pb.ListGlobalTransactionsOfStatesReply{
+			Code: Ok,
+			Xids: make([]string, 0),
+		}, nil
+	}
+	xids, err := db.FindXidsOfGlobalTxsByStates(ctx, dbConn, states, limit)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	return &pb.ListGlobalTransactionsOfStatesReply{
+		Code: Ok,
+		Xids: xids,
 	}, nil
 }

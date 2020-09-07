@@ -27,11 +27,11 @@ namespace commons.services.Saga
             var reply = await _client.CreateGlobalTransactionAsync(
                 new CreateGlobalTransactionRequest()
                 {
-                Node= _nodeInfo,
-                ExpireSeconds = expireSeconds,
-                Extra = ""
+                    Node = _nodeInfo,
+                    ExpireSeconds = expireSeconds,
+                    Extra = ""
                 });
-            if(reply.Code!= OkCode)
+            if (reply.Code != OkCode)
             {
                 throw new SagaServerException(reply.Error);
             }
@@ -92,7 +92,7 @@ namespace commons.services.Saga
             do
             {
                 tryCount++;
-                if(tryCount> maxTryTimes)
+                if (tryCount > maxTryTimes)
                 {
                     throw new SagaServerException("retry too many times but version expired");
                 }
@@ -105,7 +105,7 @@ namespace commons.services.Saga
                         State = state,
                         OldVersion = detail.Version
                     });
-                if(reply.Code == ResourceChangedErrorCode)
+                if (reply.Code == ResourceChangedErrorCode)
                 {
                     continue;
                 }
@@ -154,6 +154,22 @@ namespace commons.services.Saga
                 throw new SagaServerException(reply.Error);
             }
             return reply.State;
+        }
+
+        public async Task<IList<string>> ListGlobalTransactionsOfStatesAsync(
+            IEnumerable<TxState> states, int limit)
+        {
+            var req = new ListGlobalTransactionsOfStatesRequest
+            {
+                Limit = limit
+            };
+            req.States.AddRange(states);
+            var reply = await _client.ListGlobalTransactionsOfStatesAsync(req);
+            if (reply.Code != OkCode)
+            {
+                throw new SagaServerException(reply.Error);
+            }
+            return reply.Xids;
         }
 
     }

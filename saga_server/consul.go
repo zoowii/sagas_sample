@@ -1,50 +1,12 @@
 package main
 
 import (
-	"context"
-	"fmt"
-	consulapi "github.com/hashicorp/consul/api"
-	grpc "google.golang.org/grpc"
 	"log"
-	pb "merchant_server/merchant_service"
 	"net"
 	"net/http"
-	_ "net/http/pprof"
+	"fmt"
+	consulapi "github.com/hashicorp/consul/api"
 )
-
-const (
-	address = ":5003"
-	port    = 5003
-	network = "tcp"
-)
-
-type MerchantService struct {
-	pb.UnimplementedMerchantServer
-}
-
-func (s *MerchantService) AddLockedBalance(ctx context.Context,
-	req *pb.AddLockedBalanceRequest) (res *pb.AddLockedBalanceReply, err error) {
-	// TODO
-	log.Println("AddLockedBalance")
-	res = &pb.AddLockedBalanceReply{Success: true, Message: "success"}
-	return
-}
-
-func (s *MerchantService) ApproveLockedBalance(ctx context.Context,
-	req *pb.ApproveLockedBalanceRequest) (res *pb.ApproveLockedBalanceReply, err error) {
-	// TODO
-	log.Println("ApproveLockedBalance")
-	res = &pb.ApproveLockedBalanceReply{Success: true, Message: "done"}
-	return
-}
-
-func (s *MerchantService) CancelAddLockedBalance(ctx context.Context,
-	req *pb.CancelAddLockedBalanceRequest) (res *pb.CancelAddLockedBalanceReply, err error) {
-	// TODO
-	log.Println("CancelAddLockedBalance")
-	res = &pb.CancelAddLockedBalanceReply{Success: true, Message: "cancel done"}
-	return
-}
 
 var count int64
 
@@ -60,21 +22,21 @@ func consulCheck(w http.ResponseWriter, r *http.Request) {
 func registerServer() {
 
 	config := consulapi.DefaultConfig()
-	config.Address = "localhost:8500"
+	config.Address = "localhost:8500" // TODO: load consul url from env
 	client, err := consulapi.NewClient(config)
 	if err != nil {
 		log.Fatal("consul client error : ", err)
 	}
 
 	registration := new(consulapi.AgentServiceRegistration)
-	registration.ID = "merchant_service_go" // 服务节点的ID
-	registration.Name = "MerchantService"                                     // 服务名称
+	registration.ID = "saga_server" // 服务节点的ID
+	registration.Name = "SagaServer"                                     // 服务名称
 	registration.Port = port                                                  // 服务端口
-	registration.Tags = []string{"saga", "api"}                               // tag，可以为空
+	registration.Tags = []string{"saga", "server"}                               // tag，可以为空
 	registration.Address = "localhost"                                        // 服务 IP
 	registration.Meta = map[string]string{"scheme": "grpc"}
 
-	checkPort := 6001
+	checkPort := 6002
 	registration.Check = &consulapi.AgentServiceCheck{ // 健康检查
 		HTTP:                           fmt.Sprintf("http://%s:%d%s", registration.Address, checkPort, "/check"),
 		Timeout:                        "3s",
@@ -114,18 +76,3 @@ func localIP() string {
 	return ""
 }
 
-func main() {
-	listener, err := net.Listen(network, address)
-	if err != nil {
-		log.Fatalf("net.Listen err: %v", err)
-	}
-	log.Println(address + " net.Listing...")
-	grpcServer := grpc.NewServer()
-	pb.RegisterMerchantServer(grpcServer, &MerchantService{})
-
-	registerServer()
-
-	if err = grpcServer.Serve(listener); err != nil {
-		log.Fatalf("grpcServer.Serve err: %v", err)
-	}
-}

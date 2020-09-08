@@ -67,3 +67,12 @@ CREATE TABLE `tx_log` (
   KEY `tx_log_idx_branch_tx_id` (`branch_tx_id`) /*!80000 INVISIBLE */
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
 
+CREATE TABLE `saga_data` (
+  `id` BIGINT NOT NULL AUTO_INCREMENT,
+  `created_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  `updated_at` timestamp NOT NULL DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  `xid` VARCHAR(45) NOT NULL,
+  `data` BLOB NULL,
+  `version` int(11) NOT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE INDEX `saga_data_unique_idx_xid` (`xid` ASC) VISIBLE) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;

@@ -293,3 +293,54 @@ func UpdateBranchTxsByXidFromStateToState(ctx context.Context, tx *sql.Tx,
 	rowsAffected, err = sqlResult.RowsAffected()
 	return
 }
+
+func InsertSagaData(ctx context.Context, tx *sql.Tx,
+	xid string, data []byte) (rowsAffected int64, err error) {
+	stmt, err := tx.PrepareContext(ctx, "insert into saga_data " +
+		" (xid, `data`, `version`) values (?,?,?) " +
+		" on duplicate key update `data`=?, `version` = `version` + 1")
+	if err != nil {
+		return
+	}
+	sqlResult, err := stmt.ExecContext(ctx, xid, data, 0)
+	if err != nil {
+		return
+	}
+	rowsAffected, err = sqlResult.RowsAffected()
+	return
+}
+
+func UpdateSagaData(ctx context.Context, tx *sql.Tx,
+	xid string, data []byte, oldVersion int32) (rowsAffected int64, err error) {
+	stmt, err := tx.PrepareContext(ctx, "update saga_data " +
+		" set `data` = ?, `version` = `version` + 1 " +
+		" where `xid` = ? and `version` = ?")
+	if err != nil {
+		return
+	}
+	sqlResult, err := stmt.ExecContext(ctx, data, xid, oldVersion)
+	if err != nil {
+		return
+	}
+	rowsAffected, err = sqlResult.RowsAffected()
+	return
+}
+
+func QuerySagaData(ctx context.Context, tx *sql.Tx,
+	xid string) (record *SagaDataEntity, err error) {
+	s := "select id, created_at, updated_at, xid, `data`, `version` from saga_data " +
+		" where xid = ?"
+	row := tx.QueryRowContext(ctx, s, xid)
+	record = &SagaDataEntity{}
+	err = row.Scan(&record.Id, &record.CreatedAt, &record.UpdatedAt,
+		&record.Xid, &record.Data, &record.Version)
+	if err != nil && err == sql.ErrNoRows {
+		err = nil
+		record = nil
+		return
+	}
+	if err != nil {
+		return
+	}
+	return
+}

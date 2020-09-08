@@ -1,9 +1,10 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
-
+using Google.Protobuf;
 using saga_server;
 
 namespace commons.services.Saga
@@ -170,6 +171,38 @@ namespace commons.services.Saga
                 throw new SagaServerException(reply.Error);
             }
             return reply.Xids;
+        }
+
+        public async Task SubmitSagaDataAsync(
+            string xid, byte[] data, int oldVersion)
+        {
+            using (var dataStream = new MemoryStream(data))
+            {
+                var reply = await _client.SubmitSagaDataAsync(new SubmitSagaDataRequest()
+                {
+                    Xid = xid,
+                    Data = ByteString.FromStream(dataStream),
+                    OldVersion = oldVersion
+                });
+                if (reply.Code != OkCode)
+                {
+                    throw new SagaServerException(reply.Error);
+                }
+            }
+        }
+
+        public async Task<GetSagaDataReply> GetSagaDataAsync(
+            string xid)
+        {
+            var reply = await _client.GetSagaDataAsync(new GetSagaDataRequest()
+            {
+                Xid = xid
+            });
+            if (reply.Code != OkCode)
+            {
+                throw new SagaServerException(reply.Error);
+            }
+            return reply;
         }
 
     }

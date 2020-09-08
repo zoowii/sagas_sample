@@ -67,3 +67,15 @@ type BranchTxCompensationFailLogEntity struct {
 	JobId string
 	Reason string // 补偿任务失败原因
 }
+
+/**
+ * 全局事务中各分支共享的数据
+ */
+type SagaDataEntity struct {
+	Id uint64
+	CreatedAt *time.Time
+	UpdatedAt *time.Time
+	Xid string
+	Data []byte
+	Version int32 // 修改版本号
+}

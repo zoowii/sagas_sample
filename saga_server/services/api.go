@@ -3,6 +3,7 @@ package services
 import (
 	"context"
 	"database/sql"
+	"errors"
 	"fmt"
 	"github.com/google/uuid"
 	pb "github.com/zoowii/saga_server/api"
@@ -25,6 +26,8 @@ const (
 // TODO: 增加获取最近未结束的xid，用来给saga worker处理
 
 // TODO: saga worker对于超时未结束的xid进入补偿中状态。在补偿状态也超时了，进入失败状态
+
+// TODO: 提交saga data以及获取saga data的方法
 
 type SagaServerService struct {
 	pb.UnimplementedSagaServerServer
@@ -206,6 +209,9 @@ func (s *SagaServerService) QueryGlobalTransactionDetail(ctx context.Context,
 			InstanceId: globalTx.CreatorInstanceId,
 		},
 		Branches: branchDetails,
+		CreatedAt: globalTx.CreatedAt.Unix(),
+		UpdatedAt: globalTx.UpdatedAt.Unix(),
+		ExpireSeconds: int32(globalTx.ExpireSeconds),
 	}
 	return
 }
@@ -421,6 +427,93 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	return &pb.SubmitBranchTransactionStateReply{
 		Code:  Ok,
 		State: pb.TxState(branchTx.State),
+	}, nil
+}
+
+func (s *SagaServerService) SubmitSagaData(ctx context.Context,
+	req *pb.SubmitSagaDataRequest) (*pb.SubmitSagaDataReply, error) {
+	log.Println("SubmitSagaData")
+	var err error
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.SubmitSagaDataReply, error) {
+		return &pb.SubmitSagaDataReply{
+			Code:  code,
+			Error: msg,
+		}, nil
+	}
+	dbConn := s.dbConn
+	xid := req.Xid
+	data := req.Data
+	oldVersion := req.OldVersion
+	tx, err := dbConn.BeginTx(ctx, nil)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	record, err := db.QuerySagaData(ctx, tx, xid)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	if record == nil {
+		_, err = db.InsertSagaData(ctx, tx, xid, data)
+		if err != nil {
+			return sendErrorResponse(ServerError, err.Error())
+		}
+	} else {
+		_, err = db.UpdateSagaData(ctx, tx, xid, data, oldVersion)
+		if err != nil {
+			return sendErrorResponse(ServerError, err.Error())
+		}
+	}
+	record, err = db.QuerySagaData(ctx, tx, xid)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	if record == nil {
+		err = errors.New("insert saga_data error")
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	return &pb.SubmitSagaDataReply{
+		Code: Ok,
+	}, nil
+}
+
+func (s *SagaServerService) GetSagaData(ctx context.Context,
+	req *pb.GetSagaDataRequest) (*pb.GetSagaDataReply, error) {
+	log.Println("GetSagaData")
+	var err error
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.GetSagaDataReply, error) {
+		return &pb.GetSagaDataReply{
+			Code:  code,
+			Error: msg,
+		}, nil
+	}
+	dbConn := s.dbConn
+	xid := req.Xid
+	tx, err := dbConn.BeginTx(ctx, nil)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	defer func() {
+		if err != nil {
+			_ = tx.Rollback()
+		} else {
+			err = tx.Commit()
+		}
+	}()
+	sagaDataEntity, err := db.QuerySagaData(ctx, tx, xid)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
+	}
+	return &pb.GetSagaDataReply{
+		Code: Ok,
+		Data: sagaDataEntity.Data,
+		Version: sagaDataEntity.Version,
 	}, nil
 }
 

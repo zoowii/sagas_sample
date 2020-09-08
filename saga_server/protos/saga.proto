@@ -12,6 +12,8 @@ service SagaServer {
   rpc QueryBranchTransactionDetail (QueryBranchTransactionDetailRequest) returns (QueryBranchTransactionDetailReply);
   rpc SubmitGlobalTransactionState (SubmitGlobalTransactionStateRequest) returns (SubmitGlobalTransactionStateReply);
   rpc SubmitBranchTransactionState (SubmitBranchTransactionStateRequest) returns (SubmitBranchTransactionStateReply);
+  rpc SubmitSagaData (SubmitSagaDataRequest) returns (SubmitSagaDataReply);
+  rpc GetSagaData (GetSagaDataRequest) returns (GetSagaDataReply);
   rpc ListGlobalTransactionsOfStates (ListGlobalTransactionsOfStatesRequest) returns (ListGlobalTransactionsOfStatesReply);
 }
 
@@ -78,6 +80,9 @@ message QueryGlobalTransactionDetailReply {
   TxState state = 6;
   bool endBranches = 7;
   int32 version = 8;
+  int64 createdAt = 9;
+  int64 updatedAt = 10;
+  int32 expireSeconds = 11;
 }
 
 message QueryBranchTransactionDetailRequest {
@@ -119,6 +124,28 @@ message SubmitBranchTransactionStateReply {
   int32 code = 1; // code == 0 means success
   string error = 2;
   TxState state = 3; // 修改后的branch state
+}
+
+message SubmitSagaDataRequest {
+  string xid = 1;
+  bytes data = 2; // saga data
+  int32 oldVersion = 3; // 旧的saga data version
+}
+
+message SubmitSagaDataReply {
+  int32 code = 1; // code == 0 means success
+  string error = 2;
+}
+
+message GetSagaDataRequest {
+  string xid = 1;
+}
+
+message GetSagaDataReply {
+  int32 code = 1; // code == 0 means success
+  string error = 2;
+  bytes data = 3;
+  int32 version = 4;
 }
 
 message ListGlobalTransactionsOfStatesRequest {

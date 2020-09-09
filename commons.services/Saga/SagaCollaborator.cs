@@ -11,13 +11,8 @@ namespace commons.services.Saga
 {
     public class SagaCollaborator
     {
-        private readonly SagaServer.SagaServerClient _client;
-        private readonly NodeInfo _nodeInfo;
-        public SagaCollaborator(SagaServer.SagaServerClient client, NodeInfo nodeInfo)
-        {
-            this._client = client;
-            this._nodeInfo = nodeInfo;
-        }
+        public SagaServer.SagaServerClient Client { get; set; }
+        public NodeInfo NodeInfo { get; set; }
 
         private const int OkCode = 0;
         private const int ResourceChangedErrorCode = 3;
@@ -25,10 +20,10 @@ namespace commons.services.Saga
         public async Task<string> CreateGlobalTxAsync()
         {
             var expireSeconds = 60;
-            var reply = await _client.CreateGlobalTransactionAsync(
+            var reply = await Client.CreateGlobalTransactionAsync(
                 new CreateGlobalTransactionRequest()
                 {
-                    Node = _nodeInfo,
+                    Node = NodeInfo,
                     ExpireSeconds = expireSeconds,
                     Extra = ""
                 });
@@ -41,10 +36,10 @@ namespace commons.services.Saga
 
         public async Task<string> CreateBranchTxAsync(string xid, string branchServiceKey, string branchCompensationServiceKey)
         {
-            var reply = await _client.CreateBranchTransactionAsync(
+            var reply = await Client.CreateBranchTransactionAsync(
                 new CreateBranchTransactionRequest()
                 {
-                    Node = _nodeInfo,
+                    Node = NodeInfo,
                     BranchServiceKey = branchServiceKey,
                     BranchCompensationServiceKey = branchCompensationServiceKey,
                     Xid = xid
@@ -58,7 +53,7 @@ namespace commons.services.Saga
 
         public async Task<QueryGlobalTransactionDetailReply> QueryGlobalTxAsync(string xid)
         {
-            var reply = await _client.QueryGlobalTransactionDetailAsync(
+            var reply = await Client.QueryGlobalTransactionDetailAsync(
                 new QueryGlobalTransactionDetailRequest()
                 {
                     Xid = xid
@@ -72,7 +67,7 @@ namespace commons.services.Saga
 
         public async Task<QueryBranchTransactionDetailReply> QueryBranchTxAsync(string branchTxId)
         {
-            var reply = await _client.QueryBranchTransactionDetailAsync(
+            var reply = await Client.QueryBranchTransactionDetailAsync(
                 new QueryBranchTransactionDetailRequest()
                 {
                     BranchId = branchTxId
@@ -98,7 +93,7 @@ namespace commons.services.Saga
                     throw new SagaServerException("retry too many times but version expired");
                 }
                 var detail = await QueryGlobalTxAsync(xid);
-                var reply = await _client.SubmitGlobalTransactionStateAsync(
+                var reply = await Client.SubmitGlobalTransactionStateAsync(
                     new SubmitGlobalTransactionStateRequest()
                     {
                         Xid = xid,
@@ -121,7 +116,7 @@ namespace commons.services.Saga
         public async Task<TxState> SubmitGlobalTxStateAsync(
             string xid, TxState oldState, TxState state, int oldVersion)
         {
-            var reply = await _client.SubmitGlobalTransactionStateAsync(
+            var reply = await Client.SubmitGlobalTransactionStateAsync(
                 new SubmitGlobalTransactionStateRequest()
                 {
                     Xid = xid,
@@ -139,7 +134,7 @@ namespace commons.services.Saga
         public async Task<TxState> SubmitBranchTxStateAsync(
             string xid, string branchTxId, TxState oldState, TxState state, int oldVersion, string jobId, string errorReason)
         {
-            var reply = await _client.SubmitBranchTransactionStateAsync(
+            var reply = await Client.SubmitBranchTransactionStateAsync(
                 new SubmitBranchTransactionStateRequest()
                 {
                     Xid = xid,
@@ -165,7 +160,7 @@ namespace commons.services.Saga
                 Limit = limit
             };
             req.States.AddRange(states);
-            var reply = await _client.ListGlobalTransactionsOfStatesAsync(req);
+            var reply = await Client.ListGlobalTransactionsOfStatesAsync(req);
             if (reply.Code != OkCode)
             {
                 throw new SagaServerException(reply.Error);
@@ -178,7 +173,7 @@ namespace commons.services.Saga
         {
             using (var dataStream = new MemoryStream(data))
             {
-                var reply = await _client.SubmitSagaDataAsync(new SubmitSagaDataRequest()
+                var reply = await Client.SubmitSagaDataAsync(new SubmitSagaDataRequest()
                 {
                     Xid = xid,
                     Data = ByteString.FromStream(dataStream),
@@ -194,7 +189,7 @@ namespace commons.services.Saga
         public async Task<GetSagaDataReply> GetSagaDataAsync(
             string xid)
         {
-            var reply = await _client.GetSagaDataAsync(new GetSagaDataRequest()
+            var reply = await Client.GetSagaDataAsync(new GetSagaDataRequest()
             {
                 Xid = xid
             });

@@ -23,6 +23,5 @@ namespace BusinessApi
 
         public SagaServer.SagaServerClient SagaServerClient { get; set; }
 
-        public SagaCollaborator SagaCollaborator { get; set; }
     }
 }

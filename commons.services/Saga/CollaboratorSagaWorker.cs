@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
+using commons.services.Sagas;
 using Microsoft.Extensions.Logging;
 using saga_server;
 
@@ -14,12 +15,19 @@ namespace commons.services.Saga
      */
     public class CollaboratorSagaWorker
     {
-        private readonly ILogger _logger;
+        private readonly ILogger<CollaboratorSagaWorker> _logger;
         private readonly SagaCollaborator _sagaCollaborator;
-        public CollaboratorSagaWorker(ILogger logger, SagaCollaborator sagaCollaborator)
+        private readonly IBranchServiceResolver _branchServiceResolver;
+        private readonly ISagaDataConverter _sagaDataConverter;
+        public CollaboratorSagaWorker(ILogger<CollaboratorSagaWorker> logger,
+            SagaCollaborator sagaCollaborator,
+            IBranchServiceResolver branchServiceResolver,
+            ISagaDataConverter sagaDataConverter)
         {
             this._logger = logger;
             this._sagaCollaborator = sagaCollaborator;
+            this._branchServiceResolver = branchServiceResolver;
+            this._sagaDataConverter = sagaDataConverter;
         }
 
         private bool IsExpiredGlobalTx(QueryGlobalTransactionDetailReply globalTx)
@@ -31,6 +39,10 @@ namespace commons.services.Saga
 
         public async Task DoWork()
         {
+            if(_sagaCollaborator.Client == null)
+            {
+                return;
+            }
             var limit = 1000;
             var xids = await _sagaCollaborator.ListGlobalTransactionsOfStatesAsync(new TxState[] {
                 TxState.Processing, TxState.CompensationDoing, TxState.CompensationError
@@ -76,21 +88,24 @@ namespace commons.services.Saga
             var xid = globalTx.Xid;
             var branches = globalTx.Branches;
             var watchedBranches = new List<TransactionBranchDetail>();
+            Dictionary<string, Func<object, Task>> serviceMethods = new Dictionary<string, Func<object, Task>>();
             foreach(var branch in branches)
             {
                 var branchServiceKey = branch.BranchServiceKey;
-                // TODO: 根据branchServiceResolver 找出关注的branches. 暂时关注所有branch
-
+                // 根据branchServiceResolver 找出关注的branches. 暂时关注所有branch
+                var branchService = _branchServiceResolver.Resolve(branchServiceKey);
+                if(branchService == null)
+                {
+                    continue;
+                }
                 watchedBranches.Add(branch);
+                serviceMethods[branchServiceKey] = branchService;
             }
             // 如果没有关注的branches，返回
             if(watchedBranches.Count<1)
             {
                 return;
             }
-            // 从saga server取到saga data
-            var sagaDataReply = await _sagaCollaborator.GetSagaDataAsync(xid);
-            // var sagaData = sagaDataReply.Data.Span;
             // 执行回滚，以及修改分支状态
             foreach(var branch in watchedBranches)
             {
@@ -106,8 +121,52 @@ namespace commons.services.Saga
                         oldBranchState, TxState.CompensationDone, oldBranchVersion, jobId, "");
                     continue;
                 }
-                // TODO: 调用 branchServiceResolver 去执行补偿方法
-                // TODO: 调用成功后标记为已经补偿，如果调用失败或者没有找到补偿方法，上报补偿失败
+                // 调用 branchServiceResolver 去执行补偿方法
+                var branchCompensationService = _branchServiceResolver.Resolve(branchCompensationServiceKey);
+
+                // 调用成功后标记为已经补偿，如果调用失败或者没有找到补偿方法，上报补偿失败
+                var compensationSuccess = false;
+                var errorReason = "";
+                if(branchCompensationService != null)
+                {
+                    try
+                    {
+
+                        // 从saga server取到saga data
+                        var sagaDataReply = await _sagaCollaborator.GetSagaDataAsync(xid);
+                        byte[] sagaDataBytes = sagaDataReply.Data.ToByteArray();
+
+                        // TODO: 从resolver中创建一个空的实际类型的saga data对象
+                        var sagaData = _sagaDataConverter.Deserialize<SagaData>(typeof(SagaData), sagaDataBytes);
+                        await branchCompensationService(sagaData);
+                        var changedSagaDataBytes = _sagaDataConverter.Serialize(typeof(SagaData), sagaData);
+                        // TODO: 改成提交branch service的状态的同时提交saga data
+                        await _sagaCollaborator.SubmitSagaDataAsync(xid,
+                            changedSagaDataBytes, sagaDataReply.Version);
+
+                        compensationSuccess = true;
+                    } catch(Exception e)
+                    {
+                        compensationSuccess = false;
+                        errorReason = e.Message;
+                    }
+                }
+                if(!compensationSuccess)
+                {
+
+                    _logger.LogError($"branch compensation {branchCompensationServiceKey} fail");
+                    try
+                    {
+                        var latestBranch = await _sagaCollaborator.QueryBranchTxAsync(branchId);
+                        await _sagaCollaborator.SubmitBranchTxStateAsync(xid,
+                            branchId, latestBranch.Detail.State, TxState.CompensationError,
+                            latestBranch.Detail.Version, jobId, errorReason);
+                    }
+                    catch (Exception e2)
+                    {
+                        _logger.LogError($"SubmitBranchTxStateAsync o branch {branchId} error", e2);
+                    }
+                }
             }
 
         }

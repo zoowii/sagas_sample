@@ -24,18 +24,38 @@ namespace BusinessApi.Sagas
 
         private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly OrderService _orderService;
+        private readonly IBranchServiceResolver _branchServiceResolver;
 
         private readonly ILogger<CreateOrderSaga> _logger;
 
+
         public CreateOrderSaga(SagaWorker sagaWorker, GrpcClientsHolder grpcClientsHolder,
             OrderService orderService,
+            IBranchServiceResolver branchServiceResolver,
             ILogger<CreateOrderSaga> logger)
             : base(logger)
         {
             this.sagaWorker = sagaWorker;
             this._grpcClientsHolder = grpcClientsHolder;
             this._orderService = orderService;
+            this._branchServiceResolver = branchServiceResolver;
             this._logger = logger;
+
+
+            // TODO: 要改成启动时自动把各 SimpleSaga和SagaService的符合条件的方法Bind. 目前启动时要访问下/Order api
+            // 把各服务的方法都注入resolver
+            _branchServiceResolver.Bind<CreateOrderSagaData>( _orderService.createOrder);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(_orderService.cancelOrder);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(reserveCustomer);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelReserveCustomer);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(addLockedBalanceToMerchant);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelAddLockedBalanceToMerchant);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(_orderService.approveOrder);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(approveAddLockedBalanceToMerchant);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(addOrderHistory);
+            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelOrderHistory);
+
+
 
             sagaDefinition = Step()
                 //.SetRemoteAction(createOrder)

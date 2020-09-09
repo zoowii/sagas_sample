@@ -302,7 +302,7 @@ func InsertSagaData(ctx context.Context, tx *sql.Tx,
 	if err != nil {
 		return
 	}
-	sqlResult, err := stmt.ExecContext(ctx, xid, data, 0)
+	sqlResult, err := stmt.ExecContext(ctx, xid, data, 0, data)
 	if err != nil {
 		return
 	}

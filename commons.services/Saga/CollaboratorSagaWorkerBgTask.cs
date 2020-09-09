@@ -6,17 +6,20 @@ using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace commons.services.Sagas
+namespace commons.services.Saga
 {
-    public class SagaWorkerBgTask : BackgroundService
+    /**
+     * CollaboratorSagaWorker的后台定时任务
+     */
+    public class CollaboratorSagaWorkerBgTask : BackgroundService
     {
-        private readonly ILogger<SagaWorkerBgTask> _logger;
+        private readonly ILogger<CollaboratorSagaWorkerBgTask> _logger;
 
         private Timer _timer;
-        private string lastProcessSagaId;
-        private SagaWorker _worker;
+        private CollaboratorSagaWorker _worker;
 
-        public SagaWorkerBgTask(ILogger<SagaWorkerBgTask> logger, SagaWorker worker)
+        public CollaboratorSagaWorkerBgTask(ILogger<CollaboratorSagaWorkerBgTask> logger,
+            CollaboratorSagaWorker worker)
         {
             this._logger = logger;
             this._worker = worker;
@@ -27,7 +30,7 @@ namespace commons.services.Sagas
             var limit = 100;
             ThreadPool.QueueUserWorkItem(async (s) =>
             {
-                lastProcessSagaId = await _worker.ProcessSomeUnfinishedSagasAsync(limit, lastProcessSagaId);
+                await _worker.DoWork();
             });
         }
 
@@ -35,11 +38,11 @@ namespace commons.services.Sagas
         {
             try
             {
-                _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(10));
+                _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(60)); // TODO: 10
             }
             catch (Exception e)
             {
-                _logger.LogError($"execute saga worker error {e.Message}");
+                _logger.LogError($"execute collaborator saga worker error {e.Message}");
             }
             return Task.CompletedTask;
         }

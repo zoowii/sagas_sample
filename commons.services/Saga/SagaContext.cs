@@ -16,12 +16,19 @@ namespace commons.services.Saga
 
         private readonly string _xid;
         private readonly SagaCollaborator _sagaCollaborator;
+        private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ILogger _logger;
 
-        public SagaContext(string xid, SagaCollaborator sagaCollaborator, ILogger logger)
+        private int _sagaDataVersion = 0;
+
+        public SagaContext(string xid,
+            SagaCollaborator sagaCollaborator,
+            ISagaDataConverter sagaDataConverter,
+            ILogger logger)
         {
             this._xid = xid;
             this._sagaCollaborator = sagaCollaborator;
+            this._sagaDataConverter = sagaDataConverter;
             this._logger = logger;
         }
 
@@ -83,9 +90,16 @@ namespace commons.services.Saga
 
                 // 调用成功，通知saga server状态变化
                 var oldBranchTxDetail = await _sagaCollaborator.QueryBranchTxAsync(branchTxId);
+                // TODO: 提交branch tx state应该和submit saga data一起提交，做到原子性
                 var newState = await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
                     oldBranchTxDetail.Detail.State, saga_server.TxState.Committed,
                     oldBranchTxDetail.Detail.Version, jobId, "");
+
+                var sagaDataBytes = _sagaDataConverter.Serialize(sagaData.GetType(), sagaData);
+
+                await _sagaCollaborator.SubmitSagaDataAsync(_xid, sagaDataBytes, _sagaDataVersion);
+                _sagaDataVersion += 1;
+
                 _logger.LogInformation($"branch txid {branchTxId} state changed to {newState}");
             }
             catch (Exception e)

@@ -13,6 +13,7 @@ using BusinessApi.Sagas;
 using Consul;
 using BusinessApi.Tasks;
 using commons.services.Sagas;
+using commons.services.Saga;
 
 namespace BusinessApi
 {
@@ -34,13 +35,22 @@ namespace BusinessApi
             services.AddSingleton<SagaWorker, SimpleSagaWorker>();
             services.AddSingleton<SagaStore, MemorySagaStore>();
 
+            services.AddSingleton<ISagaDataConverter, JsonSagaDataConverter>();
+            services.AddSingleton<IBranchServiceResolver, SimpleBranchServiceResolver>();
+
             services.AddSingleton<GrpcClientsHolder>();
 
             var consulAddress = Configuration.GetSection("Consul")["ConsulUrl"];
             services.AddSingleton<IConsulClient>(new ConsulClient(o => o.Address = new Uri(consulAddress)));
 
+            services.AddSingleton<SagaCollaborator>();
+            services.AddSingleton<CollaboratorSagaWorker>();
+
             services.AddHostedService<InitServicesBgTask>();
             services.AddHostedService<SagaWorkerBgTask>();
+            services.AddHostedService<CollaboratorSagaWorkerBgTask>();
+
+            
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.

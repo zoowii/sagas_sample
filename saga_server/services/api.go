@@ -510,6 +510,12 @@ func (s *SagaServerService) GetSagaData(ctx context.Context,
 	if err != nil {
 		return sendErrorResponse(ServerError, err.Error())
 	}
+	if sagaDataEntity == nil {
+		sagaDataEntity = &db.SagaDataEntity{
+			Data: make([]byte, 0),
+			Version: 0,
+		}
+	}
 	return &pb.GetSagaDataReply{
 		Code: Ok,
 		Data: sagaDataEntity.Data,

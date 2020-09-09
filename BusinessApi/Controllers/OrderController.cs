@@ -19,16 +19,22 @@ namespace BusinessApi.Controllers
         private readonly CreateOrderSaga _createOrderSaga;
         private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly OrderService _orderService;
+        private readonly SagaCollaborator _sagaCollaborator;
+        private readonly ISagaDataConverter _sagaDataConverter;
 
         public OrderController(ILogger<OrderController> logger, CreateOrderSaga createOrderSaga,
             GrpcClientsHolder grpcClientsHolder,
-            OrderService orderService
+            OrderService orderService,
+            SagaCollaborator sagaCollaborator,
+            ISagaDataConverter sagaDataConverter
             )
         {
             this._logger = logger;
             this._createOrderSaga = createOrderSaga;
             this._grpcClientsHolder = grpcClientsHolder;
             this._orderService = orderService;
+            this._sagaCollaborator = sagaCollaborator;
+            this._sagaDataConverter = sagaDataConverter;
         }
 
         // GET: api/Order
@@ -77,8 +83,6 @@ namespace BusinessApi.Controllers
         {
             // TODO: 这个改成中心saga协调者方式注册xid和branch tx的方式
 
-            var collaborator = _grpcClientsHolder.SagaCollaborator;
-
 
             var form = new CreateOrderSagaData
             {
@@ -93,13 +97,16 @@ namespace BusinessApi.Controllers
             SagaContext<CreateOrderSagaData> sagaContext = null;
             try
             {
-                var xid = await collaborator.CreateGlobalTxAsync();
+                var xid = await _sagaCollaborator.CreateGlobalTxAsync();
                 _logger.LogInformation($"created xid {xid} in service {nameof(CreateOrder2)}");
                 // TODO: bind xid to current request context
 
                 // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
                 // 从而包装好分支事务的注册
-                sagaContext = new SagaContext<CreateOrderSagaData>(xid, collaborator, _logger);
+                sagaContext = new SagaContext<CreateOrderSagaData>(xid, _sagaCollaborator,
+                    _sagaDataConverter, _logger);
+
+                // 初始化saga data避免以后回滚时得到null sagaData
                 
                 await sagaContext.InvokeAsync(_orderService.createOrder, form);
                 await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);

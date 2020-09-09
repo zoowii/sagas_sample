@@ -23,13 +23,16 @@ namespace BusinessApi.Tasks
         private readonly ILogger<InitServicesBgTask> _logger;
         private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly IConsulClient _consulClient;
+        private readonly SagaCollaborator _sagaCollaborator;
 
         public InitServicesBgTask(ILogger<InitServicesBgTask> logger, GrpcClientsHolder grpcClientsHolder,
-            IConsulClient consulClient)
+            IConsulClient consulClient,
+            SagaCollaborator sagaCollaborator)
         {
             this._logger = logger;
             this._grpcClientsHolder = grpcClientsHolder;
             this._consulClient = consulClient;
+            this._sagaCollaborator = sagaCollaborator;
         }
 
         private async Task<string> getGrpcServiceEndpoint(string serviceName, string scheme = "https")
@@ -95,7 +98,8 @@ namespace BusinessApi.Tasks
                         Service = "BusinessApi",
                         InstanceId = "0"
                     };
-                    _grpcClientsHolder.SagaCollaborator = new SagaCollaborator(_grpcClientsHolder.SagaServerClient, nodeInfo);
+                    _sagaCollaborator.Client = _grpcClientsHolder.SagaServerClient;
+                    _sagaCollaborator.NodeInfo = nodeInfo;
                 }
 
                 {

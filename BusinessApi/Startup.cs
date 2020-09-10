@@ -36,7 +36,7 @@ namespace BusinessApi
             services.AddSingleton<SagaStore, MemorySagaStore>();
 
             services.AddSingleton<ISagaDataConverter, JsonSagaDataConverter>();
-            services.AddSingleton<IBranchServiceResolver, SimpleBranchServiceResolver>();
+            services.AddSingleton<ISagaResolver, SimpleSagaResolver>();
 
             services.AddSingleton<GrpcClientsHolder>();
 

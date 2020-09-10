@@ -38,7 +38,7 @@ namespace commons.services.Saga
         {
             try
             {
-                _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromSeconds(60)); // TODO: 10
+                _timer = new Timer(DoWork, null, TimeSpan.FromSeconds(10), TimeSpan.FromSeconds(10));
             }
             catch (Exception e)
             {

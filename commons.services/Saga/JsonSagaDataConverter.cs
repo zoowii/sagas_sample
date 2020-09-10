@@ -10,7 +10,7 @@ namespace commons.services.Saga
 {
     public class JsonSagaDataConverter : ISagaDataConverter
     {
-        public T Deserialize<T>(Type sagaDataType, byte[] bytes) where T : class, SagaData
+        public T Deserialize<T>(Func<string, Type> typeResolver, byte[] bytes) where T : class, SagaData
         {
             if(bytes == null || bytes.Length==0)
             {
@@ -20,7 +20,7 @@ namespace commons.services.Saga
             var json = JObject.Parse(mStr);
             var dataTypeNmae = json["dataType"].ToObject<string>();
             var dataJsonStr = json["data"].ToString();
-            var dataType = Type.GetType(dataTypeNmae); // TODO: 这里获取的类型不准确. 因为不是同一个程序集
+            var dataType = typeResolver(dataTypeNmae);
             var data = JsonConvert.DeserializeObject(dataJsonStr, dataType);
             return data as T;
         }

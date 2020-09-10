@@ -17,11 +17,11 @@ namespace commons.services.Saga
     {
         private readonly ILogger<CollaboratorSagaWorker> _logger;
         private readonly SagaCollaborator _sagaCollaborator;
-        private readonly IBranchServiceResolver _branchServiceResolver;
+        private readonly ISagaResolver _branchServiceResolver;
         private readonly ISagaDataConverter _sagaDataConverter;
         public CollaboratorSagaWorker(ILogger<CollaboratorSagaWorker> logger,
             SagaCollaborator sagaCollaborator,
-            IBranchServiceResolver branchServiceResolver,
+            ISagaResolver branchServiceResolver,
             ISagaDataConverter sagaDataConverter)
         {
             this._logger = logger;
@@ -80,6 +80,11 @@ namespace commons.services.Saga
             }
         }
 
+        private Type sagaDataTypeResolver(string typeFullName)
+        {
+            return _branchServiceResolver.ResolveSagaDataType(typeFullName);
+        }
+
         private async Task ProcessUnfinishedSagaAsync(QueryGlobalTransactionDetailReply globalTx)
         {
             // 对补偿中或者补偿过程中有失败的全局事务的分支事务找到关注的分支事务（根据branchTx.serviceKey)
@@ -93,7 +98,7 @@ namespace commons.services.Saga
             {
                 var branchServiceKey = branch.BranchServiceKey;
                 // 根据branchServiceResolver 找出关注的branches. 暂时关注所有branch
-                var branchService = _branchServiceResolver.Resolve(branchServiceKey);
+                var branchService = _branchServiceResolver.ResolveBranch(branchServiceKey);
                 if(branchService == null)
                 {
                     continue;
@@ -106,8 +111,9 @@ namespace commons.services.Saga
             {
                 return;
             }
+            watchedBranches.Reverse(); // watchedBranches改成倒叙，这是为了优先执行补偿后到的分支
             // 执行回滚，以及修改分支状态
-            foreach(var branch in watchedBranches)
+            foreach (var branch in watchedBranches)
             {
                 var branchId = branch.BranchId;
                 var branchCompensationServiceKey = branch.BranchCompensationServiceKey;
@@ -122,7 +128,7 @@ namespace commons.services.Saga
                     continue;
                 }
                 // 调用 branchServiceResolver 去执行补偿方法
-                var branchCompensationService = _branchServiceResolver.Resolve(branchCompensationServiceKey);
+                var branchCompensationService = _branchServiceResolver.ResolveBranch(branchCompensationServiceKey);
 
                 // 调用成功后标记为已经补偿，如果调用失败或者没有找到补偿方法，上报补偿失败
                 var compensationSuccess = false;
@@ -136,10 +142,13 @@ namespace commons.services.Saga
                         var sagaDataReply = await _sagaCollaborator.GetSagaDataAsync(xid);
                         byte[] sagaDataBytes = sagaDataReply.Data.ToByteArray();
 
-                        // TODO: 从resolver中创建一个空的实际类型的saga data对象
-                        var sagaData = _sagaDataConverter.Deserialize<SagaData>(typeof(SagaData), sagaDataBytes);
+                        var sagaData = _sagaDataConverter.Deserialize<SagaData>(sagaDataTypeResolver, sagaDataBytes);
                         await branchCompensationService(sagaData);
                         var changedSagaDataBytes = _sagaDataConverter.Serialize(typeof(SagaData), sagaData);
+
+
+                        await _sagaCollaborator.SubmitBranchTxStateAsync(xid, branchId, branch.State,
+                            TxState.CompensationDone, branch.Version, jobId, "");
                         // TODO: 改成提交branch service的状态的同时提交saga data
                         await _sagaCollaborator.SubmitSagaDataAsync(xid,
                             changedSagaDataBytes, sagaDataReply.Version);
@@ -149,6 +158,7 @@ namespace commons.services.Saga
                     {
                         compensationSuccess = false;
                         errorReason = e.Message;
+                        _logger.LogError($"branch {branchId} compensation error", e);
                     }
                 }
                 if(!compensationSuccess)

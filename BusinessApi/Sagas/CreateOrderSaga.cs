@@ -24,37 +24,39 @@ namespace BusinessApi.Sagas
 
         private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly OrderService _orderService;
-        private readonly IBranchServiceResolver _branchServiceResolver;
+        private readonly ISagaResolver _sagaResolver;
 
         private readonly ILogger<CreateOrderSaga> _logger;
 
 
         public CreateOrderSaga(SagaWorker sagaWorker, GrpcClientsHolder grpcClientsHolder,
             OrderService orderService,
-            IBranchServiceResolver branchServiceResolver,
+            ISagaResolver sagaResolver,
             ILogger<CreateOrderSaga> logger)
             : base(logger)
         {
             this.sagaWorker = sagaWorker;
             this._grpcClientsHolder = grpcClientsHolder;
             this._orderService = orderService;
-            this._branchServiceResolver = branchServiceResolver;
+            this._sagaResolver = sagaResolver;
             this._logger = logger;
 
 
             // TODO: 要改成启动时自动把各 SimpleSaga和SagaService的符合条件的方法Bind. 目前启动时要访问下/Order api
             // 把各服务的方法都注入resolver
-            _branchServiceResolver.Bind<CreateOrderSagaData>( _orderService.createOrder);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(_orderService.cancelOrder);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(reserveCustomer);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelReserveCustomer);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(addLockedBalanceToMerchant);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelAddLockedBalanceToMerchant);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(_orderService.approveOrder);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(approveAddLockedBalanceToMerchant);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(addOrderHistory);
-            _branchServiceResolver.Bind<CreateOrderSagaData>(cancelOrderHistory);
+            _sagaResolver.BindBranch<CreateOrderSagaData>( _orderService.createOrder);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.cancelOrder);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(reserveCustomer);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelReserveCustomer);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(addLockedBalanceToMerchant);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelAddLockedBalanceToMerchant);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.approveOrder);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(approveAddLockedBalanceToMerchant);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(addOrderHistory);
+            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelOrderHistory);
 
+            // 绑定saga data types
+            _sagaResolver.BindSagaDataType(typeof(CreateOrderSagaData));
 
 
             sagaDefinition = Step()

@@ -12,7 +12,6 @@ namespace commons.services.Saga
     {
         byte[] Serialize(Type sagaDataType, object sagaData);
 
-        // TODO: 反序列化时改成传入一个空的非null对象
-        T Deserialize<T>(Type sagaDataType, byte[] bytes) where T : class, SagaData;
+        T Deserialize<T>(Func<string, Type> typeResolver, byte[] bytes) where T : class, SagaData;
     }
 }

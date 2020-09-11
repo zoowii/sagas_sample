@@ -23,11 +23,6 @@ const (
 )
 
 // TODO: branchId在创建时考虑增加上级branchId的层级关系
-// TODO: 增加获取最近未结束的xid，用来给saga worker处理
-
-// TODO: saga worker对于超时未结束的xid进入补偿中状态。在补偿状态也超时了，进入失败状态
-
-// TODO: 提交saga data以及获取saga data的方法
 
 type SagaServerService struct {
 	pb.UnimplementedSagaServerServer
@@ -355,6 +350,7 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	oldVersion := req.OldVersion
 	jobId := req.JobId
 	errorReason := req.ErrorReason
+	sagaData := req.SagaData
 	branchTx, err := db.FindBranchTxByBranchTxId(ctx, dbConn, branchTxId)
 	if err != nil {
 		return sendErrorResponse(ServerError, err.Error())
@@ -400,6 +396,25 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 		return sendErrorResponse(ServerError, err.Error())
 	}
 
+	if sagaData != nil {
+		var existedSagaDataRecord *db.SagaDataEntity
+		existedSagaDataRecord, err = db.QuerySagaData(ctx, tx, xid)
+		if err != nil {
+			return sendErrorResponse(ServerError, err.Error())
+		}
+		if existedSagaDataRecord == nil {
+			_, err = db.InsertSagaData(ctx, tx, xid, sagaData)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
+		} else {
+			_, err = db.UpdateSagaData(ctx, tx, xid, sagaData, existedSagaDataRecord.Version)
+			if err != nil {
+				return sendErrorResponse(ServerError, err.Error())
+			}
+		}
+	}
+
 	switch state {
 	case pb.TxState_COMMITTED:
 		{
@@ -430,12 +445,12 @@ func (s *SagaServerService) SubmitBranchTransactionState(ctx context.Context,
 	}, nil
 }
 
-func (s *SagaServerService) SubmitSagaData(ctx context.Context,
-	req *pb.SubmitSagaDataRequest) (*pb.SubmitSagaDataReply, error) {
-	log.Println("SubmitSagaData")
+func (s *SagaServerService) InitSagaData(ctx context.Context,
+	req *pb.InitSagaDataRequest) (*pb.InitSagaDataReply, error) {
+	log.Println("InitSagaData")
 	var err error
-	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.SubmitSagaDataReply, error) {
-		return &pb.SubmitSagaDataReply{
+	sendErrorResponse := func(code ReplyErrorCodes, msg string) (*pb.InitSagaDataReply, error) {
+		return &pb.InitSagaDataReply{
 			Code:  code,
 			Error: msg,
 		}, nil
@@ -443,7 +458,6 @@ func (s *SagaServerService) SubmitSagaData(ctx context.Context,
 	dbConn := s.dbConn
 	xid := req.Xid
 	data := req.Data
-	oldVersion := req.OldVersion
 	tx, err := dbConn.BeginTx(ctx, nil)
 	if err != nil {
 		return sendErrorResponse(ServerError, err.Error())
@@ -459,16 +473,15 @@ func (s *SagaServerService) SubmitSagaData(ctx context.Context,
 	if err != nil {
 		return sendErrorResponse(ServerError, err.Error())
 	}
-	if record == nil {
-		_, err = db.InsertSagaData(ctx, tx, xid, data)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
-		}
-	} else {
-		_, err = db.UpdateSagaData(ctx, tx, xid, data, oldVersion)
-		if err != nil {
-			return sendErrorResponse(ServerError, err.Error())
-		}
+	if record != nil {
+		log.Printf("xid %s inited saga data before, no need to init again")
+		return &pb.InitSagaDataReply{
+			Code: Ok,
+		}, nil
+	}
+	_, err = db.InsertSagaData(ctx, tx, xid, data)
+	if err != nil {
+		return sendErrorResponse(ServerError, err.Error())
 	}
 	record, err = db.QuerySagaData(ctx, tx, xid)
 	if err != nil {
@@ -478,7 +491,7 @@ func (s *SagaServerService) SubmitSagaData(ctx context.Context,
 		err = errors.New("insert saga_data error")
 		return sendErrorResponse(ServerError, err.Error())
 	}
-	return &pb.SubmitSagaDataReply{
+	return &pb.InitSagaDataReply{
 		Code: Ok,
 	}, nil
 }

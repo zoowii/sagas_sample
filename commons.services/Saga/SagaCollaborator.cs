@@ -132,8 +132,17 @@ namespace commons.services.Saga
         }
 
         public async Task<TxState> SubmitBranchTxStateAsync(
-            string xid, string branchTxId, TxState oldState, TxState state, int oldVersion, string jobId, string errorReason)
+            string xid, string branchTxId, TxState oldState, TxState state, int oldVersion,
+            string jobId, string errorReason, byte[] sagaData)
         {
+            ByteString sagaDataByteString = null;
+            if(sagaData != null)
+            {
+                using(var ms = new MemoryStream(sagaData))
+                {
+                    sagaDataByteString = ByteString.FromStream(ms);
+                }
+            }
             var reply = await Client.SubmitBranchTransactionStateAsync(
                 new SubmitBranchTransactionStateRequest()
                 {
@@ -143,7 +152,8 @@ namespace commons.services.Saga
                     State = state,
                     OldVersion = oldVersion,
                     JobId = jobId,
-                    ErrorReason = errorReason
+                    ErrorReason = errorReason,
+                    SagaData = sagaDataByteString
                 });
             if (reply.Code != OkCode)
             {
@@ -168,16 +178,15 @@ namespace commons.services.Saga
             return reply.Xids;
         }
 
-        public async Task SubmitSagaDataAsync(
-            string xid, byte[] data, int oldVersion)
+        public async Task InitSagaDataAsync(
+            string xid, byte[] data)
         {
             using (var dataStream = new MemoryStream(data))
             {
-                var reply = await Client.SubmitSagaDataAsync(new SubmitSagaDataRequest()
+                var reply = await Client.InitSagaDataAsync(new InitSagaDataRequest()
                 {
                     Xid = xid,
-                    Data = ByteString.FromStream(dataStream),
-                    OldVersion = oldVersion
+                    Data = ByteString.FromStream(dataStream)
                 });
                 if (reply.Code != OkCode)
                 {

@@ -82,7 +82,7 @@ namespace commons.services.Saga
 
         private Type sagaDataTypeResolver(string typeFullName)
         {
-            return _branchServiceResolver.ResolveSagaDataType(typeFullName);
+            return SagaGlobal.ResolveSagaDataType(typeFullName);
         }
 
         private async Task ProcessUnfinishedSagaAsync(QueryGlobalTransactionDetailReply globalTx)
@@ -124,7 +124,7 @@ namespace commons.services.Saga
                 {
                     // 补偿方法为空，直接标记为已经补偿
                     await _sagaCollaborator.SubmitBranchTxStateAsync(xid, branchId,
-                        oldBranchState, TxState.CompensationDone, oldBranchVersion, jobId, "");
+                        oldBranchState, TxState.CompensationDone, oldBranchVersion, jobId, "", null);
                     continue;
                 }
                 // 调用 branchServiceResolver 去执行补偿方法
@@ -148,10 +148,7 @@ namespace commons.services.Saga
 
 
                         await _sagaCollaborator.SubmitBranchTxStateAsync(xid, branchId, branch.State,
-                            TxState.CompensationDone, branch.Version, jobId, "");
-                        // TODO: 改成提交branch service的状态的同时提交saga data
-                        await _sagaCollaborator.SubmitSagaDataAsync(xid,
-                            changedSagaDataBytes, sagaDataReply.Version);
+                            TxState.CompensationDone, branch.Version, jobId, "", changedSagaDataBytes);
 
                         compensationSuccess = true;
                     } catch(Exception e)
@@ -170,7 +167,7 @@ namespace commons.services.Saga
                         var latestBranch = await _sagaCollaborator.QueryBranchTxAsync(branchId);
                         await _sagaCollaborator.SubmitBranchTxStateAsync(xid,
                             branchId, latestBranch.Detail.State, TxState.CompensationError,
-                            latestBranch.Detail.Version, jobId, errorReason);
+                            latestBranch.Detail.Version, jobId, errorReason, null);
                     }
                     catch (Exception e2)
                     {

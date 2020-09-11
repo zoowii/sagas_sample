@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 using System.Collections.Concurrent;
 using System.Reflection;
 using Microsoft.Extensions.Logging;
+using commons.services.Utils;
 
 namespace commons.services.Saga
 {
@@ -17,18 +18,19 @@ namespace commons.services.Saga
         private readonly string _xid;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
+        private readonly ISagaResolver _sagaResolver;
         private readonly ILogger _logger;
-
-        private int _sagaDataVersion = 0;
 
         public SagaContext(string xid,
             SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
+            ISagaResolver sagaResolver,
             ILogger logger)
         {
             this._xid = xid;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
+            this._sagaResolver = sagaResolver;
             this._logger = logger;
         }
 
@@ -48,17 +50,13 @@ namespace commons.services.Saga
             return _cachedBranchStepInfos.GetOrAdd(branchStep.Method, (method) =>
             {
                 var methodName = method.Name;
-                var serviceClsName = method.DeclaringType.FullName;
-                var attributes = method.GetCustomAttributes(false);
-                var compensableAttr = (from attr in attributes
-                                       where attr.GetType() == typeof(Compensable)
-                                       select attr).FirstOrDefault();
-                var branchServiceKey = $"{serviceClsName}:{methodName}";
+                var compensableAttr = MethodUtils.GetDeclaredAttribute<Compensable>(method, typeof(Compensable));
+                var branchServiceKey = _sagaResolver.GetServiceKey(method.DeclaringType, methodName);
                 var branchCompensationServiceKey = "";
                 if (compensableAttr != null)
                 {
                     var compensationMethodName = (compensableAttr as Compensable).ActionName;
-                    branchCompensationServiceKey = $"{serviceClsName}:{compensationMethodName}";
+                    branchCompensationServiceKey = _sagaResolver.GetServiceKey(method.DeclaringType, compensationMethodName);
                 }
                 return new BranchStepInfo()
                 {
@@ -90,15 +88,12 @@ namespace commons.services.Saga
 
                 // 调用成功，通知saga server状态变化
                 var oldBranchTxDetail = await _sagaCollaborator.QueryBranchTxAsync(branchTxId);
-                // TODO: 提交branch tx state应该和submit saga data一起提交，做到原子性
-                var newState = await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
-                    oldBranchTxDetail.Detail.State, saga_server.TxState.Committed,
-                    oldBranchTxDetail.Detail.Version, jobId, "");
-
                 var sagaDataBytes = _sagaDataConverter.Serialize(sagaData.GetType(), sagaData);
 
-                await _sagaCollaborator.SubmitSagaDataAsync(_xid, sagaDataBytes, _sagaDataVersion);
-                _sagaDataVersion += 1;
+                var newState = await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
+                    oldBranchTxDetail.Detail.State, saga_server.TxState.Committed,
+                    oldBranchTxDetail.Detail.Version, jobId, "",
+                    sagaDataBytes);
 
                 _logger.LogInformation($"branch txid {branchTxId} state changed to {newState}");
             }
@@ -109,9 +104,8 @@ namespace commons.services.Saga
                 var oldBranchTxDetail = await _sagaCollaborator.QueryBranchTxAsync(branchTxId);
                 await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
                     oldBranchTxDetail.Detail.State, saga_server.TxState.CompensationDoing,
-                    oldBranchTxDetail.Detail.Version, jobId, e.Message);
+                    oldBranchTxDetail.Detail.Version, jobId, e.Message, null);
 
-                // TODO: 通知后台任务把回滚本全局事务
                 throw e;
             }
             

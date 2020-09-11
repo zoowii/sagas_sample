@@ -12,7 +12,7 @@ service SagaServer {
   rpc QueryBranchTransactionDetail (QueryBranchTransactionDetailRequest) returns (QueryBranchTransactionDetailReply);
   rpc SubmitGlobalTransactionState (SubmitGlobalTransactionStateRequest) returns (SubmitGlobalTransactionStateReply);
   rpc SubmitBranchTransactionState (SubmitBranchTransactionStateRequest) returns (SubmitBranchTransactionStateReply);
-  rpc SubmitSagaData (SubmitSagaDataRequest) returns (SubmitSagaDataReply);
+  rpc InitSagaData (InitSagaDataRequest) returns (InitSagaDataReply);
   rpc GetSagaData (GetSagaDataRequest) returns (GetSagaDataReply);
   rpc ListGlobalTransactionsOfStates (ListGlobalTransactionsOfStatesRequest) returns (ListGlobalTransactionsOfStatesReply);
 }
@@ -118,6 +118,7 @@ message SubmitBranchTransactionStateRequest {
   int32 oldVersion = 5; // 修改前的分支事务的版本号
   string jobId = 6; // 每次分支执行每次任务或者补偿任务都有一个不同的jobId
   string errorReason = 7; // 失败原因
+  bytes sagaData = 8;
 }
 
 message SubmitBranchTransactionStateReply {
@@ -126,13 +127,12 @@ message SubmitBranchTransactionStateReply {
   TxState state = 3; // 修改后的branch state
 }
 
-message SubmitSagaDataRequest {
+message InitSagaDataRequest {
   string xid = 1;
   bytes data = 2; // saga data
-  int32 oldVersion = 3; // 旧的saga data version
 }
 
-message SubmitSagaDataReply {
+message InitSagaDataReply {
   int32 code = 1; // code == 0 means success
   string error = 2;
 }

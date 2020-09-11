@@ -10,7 +10,6 @@ namespace commons.services.Saga
     public class SimpleSagaResolver : ISagaResolver
     {
         private ConcurrentDictionary<string, Func<object, Task>> _bindedBranchServices = new ConcurrentDictionary<string, Func<object, Task>>();
-        private ConcurrentDictionary<string, Type> _bindedSagaDataTypes = new ConcurrentDictionary<string, Type>();
 
         public void BindBranch<T>(string serviceKey, Func<T, Task> func) where T : class, SagaData
         {
@@ -20,6 +19,11 @@ namespace commons.services.Saga
             };
         }
 
+        public string GetServiceKey(Type typeInfo, string methodName)
+        {
+            return $"{typeInfo.FullName}:{methodName}";
+        }
+
         public Func<object, Task> ResolveBranch(string serviceKey)
         {
             return _bindedBranchServices.GetValueOrDefault(serviceKey, null);
@@ -27,21 +31,9 @@ namespace commons.services.Saga
 
         void ISagaResolver.BindBranch<T>(Func<T, Task> func)
         {
-            var targetTypeFullName = func.Target.GetType().FullName;
             var methodName = func.Method.Name;
-            var key = $"{targetTypeFullName}:{methodName}";
+            var key = GetServiceKey(func.Target.GetType(), methodName);
             BindBranch(key, func);
-        }
-
-        public void BindSagaDataType(Type sagaDataType)
-        {
-            var fullTypeName = sagaDataType.FullName;
-            _bindedSagaDataTypes[fullTypeName] = sagaDataType;
-        }
-
-        public Type ResolveSagaDataType(string fullTypeName)
-        {
-            return _bindedSagaDataTypes.GetValueOrDefault(fullTypeName, null);
         }
     }
 }

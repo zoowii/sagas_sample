@@ -14,9 +14,6 @@ using commons.services.Saga;
 
 namespace BusinessApi.Sagas
 {
-    // TODO: 分布式的saga协调者.暂时在网关发起，独立跑集中式协调者
-    // TODO: 每个saga service的业务方法和补偿方法开头都向saga server请求xid和step id，记录本step到本sagaId中，从而可以有动态saga规则定义，而不是需要预定义saga definition
-
     public class CreateOrderSaga : SimpleSaga<CreateOrderSagaData>
     {
         private readonly SagaWorker sagaWorker;
@@ -33,7 +30,7 @@ namespace BusinessApi.Sagas
             OrderService orderService,
             ISagaResolver sagaResolver,
             ILogger<CreateOrderSaga> logger)
-            : base(logger)
+            : base(logger, sagaResolver)
         {
             this.sagaWorker = sagaWorker;
             this._grpcClientsHolder = grpcClientsHolder;
@@ -42,21 +39,11 @@ namespace BusinessApi.Sagas
             this._logger = logger;
 
 
-            // TODO: 要改成启动时自动把各 SimpleSaga和SagaService的符合条件的方法Bind. 目前启动时要访问下/Order api
-            // 把各服务的方法都注入resolver
+            // 本saga中服务会自动注入reslver，额外的服务需要手动注入
             _sagaResolver.BindBranch<CreateOrderSagaData>( _orderService.createOrder);
             _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.cancelOrder);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(reserveCustomer);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelReserveCustomer);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(addLockedBalanceToMerchant);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelAddLockedBalanceToMerchant);
             _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.approveOrder);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(approveAddLockedBalanceToMerchant);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(addOrderHistory);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(cancelOrderHistory);
-
-            // 绑定saga data types
-            _sagaResolver.BindSagaDataType(typeof(CreateOrderSagaData));
+            
 
 
             sagaDefinition = Step()

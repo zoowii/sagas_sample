@@ -21,12 +21,14 @@ namespace BusinessApi.Controllers
         private readonly OrderService _orderService;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
+        private readonly ISagaResolver _sagaResolver;
 
         public OrderController(ILogger<OrderController> logger, CreateOrderSaga createOrderSaga,
             GrpcClientsHolder grpcClientsHolder,
             OrderService orderService,
             SagaCollaborator sagaCollaborator,
-            ISagaDataConverter sagaDataConverter
+            ISagaDataConverter sagaDataConverter,
+            ISagaResolver sagaResolver
             )
         {
             this._logger = logger;
@@ -35,6 +37,7 @@ namespace BusinessApi.Controllers
             this._orderService = orderService;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
+            this._sagaResolver = sagaResolver;
         }
 
         // GET: api/Order
@@ -104,9 +107,12 @@ namespace BusinessApi.Controllers
                 // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
                 // 从而包装好分支事务的注册
                 sagaContext = new SagaContext<CreateOrderSagaData>(xid, _sagaCollaborator,
-                    _sagaDataConverter, _logger);
+                    _sagaDataConverter, _sagaResolver, _logger);
 
                 // 初始化saga data避免以后回滚时得到null sagaData
+                await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
+
+                // TODO: 初始saga data要传给saga server，避免第一个branch就失败导致补偿时saga data是null
                 
                 await sagaContext.InvokeAsync(_orderService.createOrder, form);
                 await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);

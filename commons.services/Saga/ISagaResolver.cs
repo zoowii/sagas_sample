@@ -18,8 +18,6 @@ namespace commons.services.Saga
         void BindBranch<T>(Func<T, Task> func) where T : class, SagaData;
         Func<object, Task> ResolveBranch(string serviceKey);
 
-        void BindSagaDataType(Type sagaDataType);
-
-        Type ResolveSagaDataType(string fullTypeName);
+        string GetServiceKey(Type typeInfo, string methodName);
     }
 }

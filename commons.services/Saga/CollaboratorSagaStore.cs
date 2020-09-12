@@ -35,12 +35,12 @@ namespace commons.services.Saga
 
         public Task<SagaInfo> GetSagaInfo(string sagaId)
         {
-            throw new NotImplementedException(); // TODO
+            throw new NotImplementedException();
         }
 
         public Task<IList<string>> ListSagaIdsInStates(IList<SagaState> states, int limit, string afterSagaId)
         {
-            throw new NotImplementedException(); // TODO
+            throw new NotImplementedException();
         }
 
         public Task<bool> LockSagaProcess(string sagaId, string workerId, TimeSpan lockMaxTime)
@@ -57,7 +57,7 @@ namespace commons.services.Saga
 
         public Task<bool> SetSagaState(string sagaId, SagaState state, SagaState? oldState)
         {
-            throw new NotImplementedException(); // TODO
+            return Task.FromResult(true);
         }
 
         public Task UnlockSagaProcess(string sagaId, string workerId)
@@ -67,22 +67,22 @@ namespace commons.services.Saga
 
         Task SagaStore.CompensationDone<FormType>(SimpleSaga<FormType> saga, SagaStep step, string sagaId, SagaData form)
         {
-            throw new NotImplementedException(); // TODO
+            return Task.CompletedTask;
         }
 
         Task SagaStore.CompensationException<FormType>(SimpleSaga<FormType> saga, SagaStep step, string sagaId, SagaData form, Exception e)
         {
-            throw new NotImplementedException(); // TODO
+            return Task.CompletedTask;
         }
 
         Task SagaStore.CompensationStart<FormType>(SimpleSaga<FormType> saga, string sagaId, SagaData form)
         {
-            throw new NotImplementedException(); // TODO
+            return Task.CompletedTask;
         }
 
         Task<string> SagaStore.CreateSagaId<FormType>(SimpleSaga<FormType> saga)
         {
-            throw new NotImplementedException(); // TODO
+            throw new NotImplementedException();
         }
     }
 }

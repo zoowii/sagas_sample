@@ -1,0 +1,73 @@
+﻿using commons.services.Saga;
+using commons.services.Sagas;
+using Microsoft.Extensions.Configuration;
+using System;
+using System.Collections.Generic;
+using System.Linq;
+using System.Text;
+
+namespace Microsoft.Extensions.DependencyInjection
+{
+    public static class SagaConfigServiceCollectionExtensions
+    {
+        private static List<Type> sagaTypes = new List<Type>();
+
+        public static IServiceCollection AddSaga<T>(this IServiceCollection services) where T : class, ISimpleSaga
+        {
+            services.AddSingleton<T>();
+            sagaTypes.Add(typeof(T));
+            return services;
+        }
+
+        public static IServiceCollection AddSagaConfig(
+             this IServiceCollection services, IConfiguration config)
+        {
+            services.AddSingleton<ISagaDataConverter, JsonSagaDataConverter>();
+            services.AddSingleton<ISagaResolver, SimpleSagaResolver>();
+            // services.AddSingleton<SagaWorker, SimpleSagaWorker>();
+            // services.AddSingleton<SagaStore, MemorySagaStore>();
+
+
+            var sagaNodeConfigSection = config.GetSection("Saga:Node");
+            if (sagaNodeConfigSection.Exists())
+            {
+                var sagaNodeInfoConfig = sagaNodeConfigSection.Get<SagaNodeInfoConfig>();
+                services.AddSingleton(sagaNodeInfoConfig);
+            }
+            else
+            {
+                var sagaNodeInfoConfig = new SagaNodeInfoConfig()
+                {
+                    Group = "annoy",
+                    Service = "annoy",
+                    InstanceId = "0"
+                };
+                services.AddSingleton(sagaNodeInfoConfig);
+            }
+
+
+            services.AddSingleton<SagaCollaborator>();
+            services.AddSingleton<CollaboratorSagaWorker>();
+
+            // services.AddHostedService<SagaWorkerBgTask>(); 这是完全预先申明式saga定义的worker
+            services.AddHostedService<CollaboratorSagaWorkerBgTask>();
+
+            return services;
+        }
+
+        public static IEnumerable<Type> GetSagaTypes(this IServiceProvider serviceProvider)
+        {
+            return sagaTypes;
+        }
+
+
+        // 在DI中加载各注册的ISimpleSaga的实现类型
+        public static IEnumerable<ISimpleSaga> LoadSagaTypes(this IServiceProvider serviceProvider)
+        {
+            var sagaTypes = serviceProvider.GetSagaTypes();
+
+            var allSagas = from t in sagaTypes select serviceProvider.GetService(t);
+            return allSagas;
+        }
+    }
+}

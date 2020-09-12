@@ -123,7 +123,6 @@ namespace commons.services.Saga
         public async Task Rollback()
         {
             await _sagaCollaborator.SubmitGlobalTxStateOptimismAsync(_xid, saga_server.TxState.CompensationDoing);
-            // TODO: 后台任务让saga worker去处理各分支的回滚
             return;
         }
 

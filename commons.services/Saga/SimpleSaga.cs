@@ -8,11 +8,6 @@ using Microsoft.Extensions.Logging;
 using commons.services.Saga;
 using commons.services.Utils;
 
-/**
- * TODO: saga step的补偿方法尽量定义在action旁边(SagaService的各方法)，通过注解或者其他方式
- * TODO: 增加动态定义的saga，调用某个saga service时向saga server注册这个step以及对应补偿函数到这个sagaId中
- * 
- */
 namespace commons.services.Sagas
 {
     public interface ISimpleSaga 
@@ -37,8 +32,6 @@ namespace commons.services.Sagas
 
             AutoBindBranchServices();
         }
-
-      
 
         private void AutoBindBranchServices()
         {
@@ -124,7 +117,7 @@ namespace commons.services.Sagas
 
         protected SagaStore GetSagaStore()
         {
-            return GetSagaWorker().GetStore();
+            return GetSagaWorker()?.GetStore();
         }
 
         public async Task DoCompensationOfSaga(string sagaId, SagaData form)

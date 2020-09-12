@@ -24,15 +24,19 @@ namespace BusinessApi.Tasks
         private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly IConsulClient _consulClient;
         private readonly SagaCollaborator _sagaCollaborator;
+        private readonly SagaNodeInfoConfig _sagaNodeInfoConfig;
 
-        public InitServicesBgTask(ILogger<InitServicesBgTask> logger, GrpcClientsHolder grpcClientsHolder,
+        public InitServicesBgTask(ILogger<InitServicesBgTask> logger,
+            GrpcClientsHolder grpcClientsHolder,
             IConsulClient consulClient,
-            SagaCollaborator sagaCollaborator)
+            SagaCollaborator sagaCollaborator,
+            SagaNodeInfoConfig sagaNodeInfoConfig)
         {
             this._logger = logger;
             this._grpcClientsHolder = grpcClientsHolder;
             this._consulClient = consulClient;
             this._sagaCollaborator = sagaCollaborator;
+            this._sagaNodeInfoConfig = sagaNodeInfoConfig;
         }
 
         private async Task<string> getGrpcServiceEndpoint(string serviceName, string scheme = "https")
@@ -91,12 +95,11 @@ namespace BusinessApi.Tasks
                     var channel = createGrpcChannelFromUrl(url);
                     _grpcClientsHolder.SagaServerClient = new SagaServer.SagaServerClient(channel);
 
-                    // TODO: get node info from config
                     var nodeInfo = new NodeInfo()
                     {
-                        Group = "example",
-                        Service = "BusinessApi",
-                        InstanceId = "0"
+                        Group = _sagaNodeInfoConfig.Group,
+                        Service = _sagaNodeInfoConfig.Service,
+                        InstanceId = _sagaNodeInfoConfig.InstanceId
                     };
                     _sagaCollaborator.Client = _grpcClientsHolder.SagaServerClient;
                     _sagaCollaborator.NodeInfo = nodeInfo;

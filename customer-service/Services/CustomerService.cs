@@ -52,7 +52,6 @@ namespace customer_service
                 _customerReservedDebts[request.CustomerName] -= _appliedOrderAmounts[request.OrderId];
                 _appliedOrderAmounts.Remove(request.OrderId);
             }
-            // TODO
             return Task.FromResult(new CancelReserveCreditReply
             {
                 Success = true,

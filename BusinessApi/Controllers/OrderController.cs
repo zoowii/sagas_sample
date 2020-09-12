@@ -11,20 +11,20 @@ using commons.services.Saga;
 
 namespace BusinessApi.Controllers
 {
+
     [Route("api/[controller]")]
     [ApiController]
     public class OrderController : ControllerBase
     {
         private readonly ILogger<OrderController> _logger;
         private readonly CreateOrderSaga _createOrderSaga;
-        private readonly GrpcClientsHolder _grpcClientsHolder;
         private readonly OrderService _orderService;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ISagaResolver _sagaResolver;
 
-        public OrderController(ILogger<OrderController> logger, CreateOrderSaga createOrderSaga,
-            GrpcClientsHolder grpcClientsHolder,
+        public OrderController(ILogger<OrderController> logger,
+            CreateOrderSaga createOrderSaga,
             OrderService orderService,
             SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
@@ -33,7 +33,6 @@ namespace BusinessApi.Controllers
         {
             this._logger = logger;
             this._createOrderSaga = createOrderSaga;
-            this._grpcClientsHolder = grpcClientsHolder;
             this._orderService = orderService;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
@@ -84,9 +83,6 @@ namespace BusinessApi.Controllers
         [HttpGet("CreateOrder2")]
         public async Task<string> CreateOrder2([FromQuery] string goodsName, [FromQuery] string customerName, [FromQuery] Int64 amount)
         {
-            // TODO: 这个改成中心saga协调者方式注册xid和branch tx的方式
-
-
             var form = new CreateOrderSagaData
             {
                 CreateOrder = new order_service.CreateOrderRequest
@@ -100,6 +96,7 @@ namespace BusinessApi.Controllers
             SagaContext<CreateOrderSagaData> sagaContext = null;
             try
             {
+                // TODO: 把saga的处理逻辑从业务接口中剥离出来
                 var xid = await _sagaCollaborator.CreateGlobalTxAsync();
                 _logger.LogInformation($"created xid {xid} in service {nameof(CreateOrder2)}");
                 // TODO: bind xid to current request context
@@ -111,8 +108,6 @@ namespace BusinessApi.Controllers
 
                 // 初始化saga data避免以后回滚时得到null sagaData
                 await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
-
-                // TODO: 初始saga data要传给saga server，避免第一个branch就失败导致补偿时saga data是null
                 
                 await sagaContext.InvokeAsync(_orderService.createOrder, form);
                 await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);

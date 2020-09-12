@@ -16,7 +16,7 @@ namespace BusinessApi.Sagas
 {
     public class CreateOrderSaga : SimpleSaga<CreateOrderSagaData>
     {
-        private readonly SagaWorker sagaWorker;
+        // private readonly SagaWorker _sagaWorker;
         private readonly SagaDefinition sagaDefinition;
 
         private readonly GrpcClientsHolder _grpcClientsHolder;
@@ -26,13 +26,15 @@ namespace BusinessApi.Sagas
         private readonly ILogger<CreateOrderSaga> _logger;
 
 
-        public CreateOrderSaga(SagaWorker sagaWorker, GrpcClientsHolder grpcClientsHolder,
+        public CreateOrderSaga(
+            /* SagaWorker sagaWorker, */
+            GrpcClientsHolder grpcClientsHolder,
             OrderService orderService,
             ISagaResolver sagaResolver,
             ILogger<CreateOrderSaga> logger)
             : base(logger, sagaResolver)
         {
-            this.sagaWorker = sagaWorker;
+            // this._sagaWorker = sagaWorker;
             this._grpcClientsHolder = grpcClientsHolder;
             this._orderService = orderService;
             this._sagaResolver = sagaResolver;
@@ -74,7 +76,8 @@ namespace BusinessApi.Sagas
 
         public override SagaWorker GetSagaWorker()
         {
-            return sagaWorker;
+            return null;
+            // return _sagaWorker;
         }
 
         // 用public而不是private是为了暴露给sagaContext调用

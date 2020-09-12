@@ -30,31 +30,24 @@ namespace BusinessApi
         public void ConfigureServices(IServiceCollection services)
         {
             services.AddControllers();
+
             services.AddSingleton<OrderService>();
-            services.AddSingleton<CreateOrderSaga>();
-            services.AddSingleton<SagaWorker, SimpleSagaWorker>();
-            services.AddSingleton<SagaStore, MemorySagaStore>();
 
-            services.AddSingleton<ISagaDataConverter, JsonSagaDataConverter>();
-            services.AddSingleton<ISagaResolver, SimpleSagaResolver>();
-
-            services.AddSingleton<GrpcClientsHolder>();
+            services.AddSaga<CreateOrderSaga>();
 
             var consulAddress = Configuration.GetSection("Consul")["ConsulUrl"];
             services.AddSingleton<IConsulClient>(new ConsulClient(o => o.Address = new Uri(consulAddress)));
-
-            services.AddSingleton<SagaCollaborator>();
-            services.AddSingleton<CollaboratorSagaWorker>();
+            
+            services.AddSagaConfig(Configuration);
 
             services.AddHostedService<InitServicesBgTask>();
-            services.AddHostedService<SagaWorkerBgTask>();
-            services.AddHostedService<CollaboratorSagaWorkerBgTask>();
+            services.AddSingleton<GrpcClientsHolder>();
 
-            
         }
 
         // This method gets called by the runtime. Use this method to configure the HTTP request pipeline.
-        public void Configure(IApplicationBuilder app, IWebHostEnvironment env)
+        public void Configure(IApplicationBuilder app, IWebHostEnvironment env,
+            ILogger<Startup> logger)
         {
             if (env.IsDevelopment())
             {
@@ -69,6 +62,11 @@ namespace BusinessApi
             {
                 endpoints.MapControllers();
             });
+
+            // 把各saga服务都自动加载，从而可以从saga server监听各补偿任务
+            var serviceProvider = app.ApplicationServices;
+            var allSagas = serviceProvider.LoadSagaTypes();
+            logger.LogInformation($"loaded {allSagas.Count()} sagas");
         }
     }
 }

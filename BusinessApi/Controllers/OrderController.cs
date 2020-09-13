@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Mvc;
 using BusinessApi.Sagas;
 using Microsoft.Extensions.Logging;
 using commons.services.Saga;
+using System.Threading;
+using commons.services.Utils;
 
 namespace BusinessApi.Controllers
 {
@@ -18,14 +20,14 @@ namespace BusinessApi.Controllers
     {
         private readonly ILogger<OrderController> _logger;
         private readonly CreateOrderSaga _createOrderSaga;
-        private readonly OrderService _orderService;
+        private readonly IOrderService _orderService;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ISagaResolver _sagaResolver;
 
         public OrderController(ILogger<OrderController> logger,
             CreateOrderSaga createOrderSaga,
-            OrderService orderService,
+            IOrderService orderService,
             SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
             ISagaResolver sagaResolver
@@ -96,23 +98,28 @@ namespace BusinessApi.Controllers
             SagaContext<CreateOrderSagaData> sagaContext = null;
             try
             {
-                // TODO: 把saga的处理逻辑从业务接口中剥离出来
+                // TODO: 把saga的处理逻辑从业务接口中剥离出来. 避免手动创建和绑定/解绑sagaContext以及commit/rollback sagaContext
                 var xid = await _sagaCollaborator.CreateGlobalTxAsync();
                 _logger.LogInformation($"created xid {xid} in service {nameof(CreateOrder2)}");
-                // TODO: bind xid to current request context
+                // bind xid to current call context
+                CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, xid);
 
                 // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
                 // 从而包装好分支事务的注册
                 sagaContext = new SagaContext<CreateOrderSagaData>(xid, _sagaCollaborator,
                     _sagaDataConverter, _sagaResolver, _logger);
+                CallContext.SetData(SagaGlobal.SAGA_CONTEXT_CONTEXT_KEY, sagaContext);
 
                 // 初始化saga data避免以后回滚时得到null sagaData
                 await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
-                
-                await sagaContext.InvokeAsync(_orderService.createOrder, form);
+
+                // await sagaContext.InvokeAsync(_orderService.createOrder, form);
+                await _orderService.createOrder(form);
+                // TODO: SimpleSaga的继承类也要用代理实现自动sagaContext.InvokeAsync
                 await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);
                 await sagaContext.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
-                await sagaContext.InvokeAsync(_orderService.approveOrder, form);
+                // await sagaContext.InvokeAsync(_orderService.approveOrder, form);
+                await _orderService.approveOrder(form);
                 await sagaContext.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
                 await sagaContext.InvokeAsync(_createOrderSaga.addOrderHistory, form);
 
@@ -132,6 +139,11 @@ namespace BusinessApi.Controllers
                     return form.RejectionReason.ToString();
                 }
                 return e.Message;
+            }
+            finally
+            {
+                CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, null);
+                CallContext.SetData(SagaGlobal.SAGA_CONTEXT_CONTEXT_KEY, null);
             }
         }
 

@@ -20,7 +20,7 @@ namespace BusinessApi.Sagas
         private readonly SagaDefinition sagaDefinition;
 
         private readonly GrpcClientsHolder _grpcClientsHolder;
-        private readonly OrderService _orderService;
+        private readonly OrderServiceImpl _orderService;
         private readonly ISagaResolver _sagaResolver;
 
         private readonly ILogger<CreateOrderSaga> _logger;
@@ -29,7 +29,8 @@ namespace BusinessApi.Sagas
         public CreateOrderSaga(
             /* SagaWorker sagaWorker, */
             GrpcClientsHolder grpcClientsHolder,
-            OrderService orderService,
+            /* 这里注入orderService真实业务对象而不是saga代理对象，是为了避免两次sagaContext.invokeAsync重复注册一段代码为2各branchId */
+            OrderServiceImpl orderService,
             ISagaResolver sagaResolver,
             ILogger<CreateOrderSaga> logger)
             : base(logger, sagaResolver)

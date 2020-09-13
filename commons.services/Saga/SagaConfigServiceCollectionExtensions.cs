@@ -10,12 +10,20 @@ namespace Microsoft.Extensions.DependencyInjection
 {
     public static class SagaConfigServiceCollectionExtensions
     {
-        private static List<Type> sagaTypes = new List<Type>();
+        private static List<Type> simpleSagaTypes = new List<Type>();
+        private static List<Type> sagaServicesTypes = new List<Type>();
 
         public static IServiceCollection AddSaga<T>(this IServiceCollection services) where T : class, ISimpleSaga
         {
             services.AddSingleton<T>();
-            sagaTypes.Add(typeof(T));
+            simpleSagaTypes.Add(typeof(T));
+            return services;
+        }
+
+        public static IServiceCollection AddSagaService<T>(this IServiceCollection services) where T : class, SagaService
+        {
+            services.AddSingleton<T>();
+            sagaServicesTypes.Add(typeof(T));
             return services;
         }
 
@@ -57,7 +65,7 @@ namespace Microsoft.Extensions.DependencyInjection
 
         public static IEnumerable<Type> GetSagaTypes(this IServiceProvider serviceProvider)
         {
-            return sagaTypes;
+            return simpleSagaTypes;
         }
 
 
@@ -66,7 +74,10 @@ namespace Microsoft.Extensions.DependencyInjection
         {
             var sagaTypes = serviceProvider.GetSagaTypes();
 
-            var allSagas = from t in sagaTypes select serviceProvider.GetService(t);
+            var allSagas = from t in sagaTypes select serviceProvider.GetService(t) as ISimpleSaga;
+
+            // TODO: 对sagaServicesTypes 中的各满足条件的业务方法和补偿方法绑定serviceKey => serviceMethod
+
             return allSagas;
         }
     }

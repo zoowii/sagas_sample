@@ -8,11 +8,13 @@ using order_service;
 
 namespace BusinessApi.Sagas
 {
-    public class OrderService : SagaService
+    // TODO: 定义IOrderService和OrderServiceImpl, startup时自动产生实现了IOrderService的代理类，
+    //  代理类在调用实际方法前会调用currentSagaContext.InvokeAsync
+    public class OrderServiceImpl : IOrderService
     {
         private readonly GrpcClientsHolder _grpcClientsHolder;
 
-        public OrderService(GrpcClientsHolder grpcClientsHolder)
+        public OrderServiceImpl(GrpcClientsHolder grpcClientsHolder)
         {
             this._grpcClientsHolder = grpcClientsHolder;
         }

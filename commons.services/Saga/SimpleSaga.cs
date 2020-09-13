@@ -35,6 +35,8 @@ namespace commons.services.Sagas
 
         private void AutoBindBranchServices()
         {
+            // TODO: 这个方法剥离成通用方法，从而SagaService接口的实现者也可以用
+
             // saga的实现类的各满足要求的方法，以及compensable方法（如果还没注册过的话）自动BindBranch，
             // 这样避免具体实现类中手动写
             var sagaTypeInfo = this.GetType();

@@ -31,7 +31,8 @@ namespace BusinessApi
         {
             services.AddControllers();
 
-            services.AddSingleton<OrderService>();
+            services.AddSagaService<OrderServiceImpl>();
+            services.AddSingleton<IOrderService, OrderServiceSagaProxy>();
 
             services.AddSaga<CreateOrderSaga>();
 

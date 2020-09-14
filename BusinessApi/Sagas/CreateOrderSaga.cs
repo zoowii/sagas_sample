@@ -29,7 +29,7 @@ namespace BusinessApi.Sagas
         public CreateOrderSaga(
             /* SagaWorker sagaWorker, */
             GrpcClientsHolder grpcClientsHolder,
-            /* 这里注入orderService真实业务对象而不是saga代理对象，是为了避免两次sagaContext.invokeAsync重复注册一段代码为2各branchId */
+            /* 这里注入orderService真实业务对象而不是saga代理对象，是为了避免两次sagaSession.invokeAsync重复注册一段代码为2各branchId */
             OrderServiceImpl orderService,
             ISagaResolver sagaResolver,
             ILogger<CreateOrderSaga> logger)
@@ -96,7 +96,7 @@ namespace BusinessApi.Sagas
             await _orderService.approveOrder(form);
         }
 
-        // 用public而不是private是为了暴露给sagaContext调用
+        // 用public而不是private是为了暴露给sagaSession调用
         [Compensable(nameof(cancelReserveCustomer))]
         public async Task reserveCustomer(CreateOrderSagaData form)
         {
@@ -122,7 +122,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public to sagaContext
+        // public to sagaSession
         public async Task cancelReserveCustomer(CreateOrderSagaData form)
         {
             try
@@ -150,7 +150,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public只暴露给sagaContext
+        // public只暴露给sagaSession
         [Compensable(nameof(cancelAddLockedBalanceToMerchant))]
         public async Task addLockedBalanceToMerchant(CreateOrderSagaData form)
         {
@@ -176,7 +176,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public to sagaContext
+        // public to sagaSession
         public async Task cancelAddLockedBalanceToMerchant(CreateOrderSagaData form)
         {
             try
@@ -205,7 +205,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public to SagaContext
+        // public to SagaSession
         public async Task approveAddLockedBalanceToMerchant(CreateOrderSagaData form)
         {
             try
@@ -234,7 +234,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public to sagaContext
+        // public to sagaSession
         [Compensable(nameof(cancelOrderHistory))]
         public async Task addOrderHistory(CreateOrderSagaData form)
         {
@@ -264,7 +264,7 @@ namespace BusinessApi.Sagas
             }
         }
 
-        // public to sagaContext
+        // public to sagaSession
         public async Task cancelOrderHistory(CreateOrderSagaData form)
         {
             try

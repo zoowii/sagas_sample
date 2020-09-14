@@ -98,64 +98,45 @@ namespace BusinessApi.Controllers
                 }
             };
 
-            SagaContext<CreateOrderSagaData> sagaContext = null;
-            try
+            // TODO: 把sagaContext和start/commit/rollback玻璃出来，业务代码简单写就可以了
+            using (var sagaContext = new SagaContext(_sagaCollaborator,
+                    _sagaDataConverter, _sagaResolver, _logger))
             {
-                // TODO: 把saga的处理逻辑从业务接口中剥离出来. 避免手动创建和绑定/解绑sagaContext以及commit/rollback sagaContext
-                var xid = await _sagaCollaborator.CreateGlobalTxAsync();
-                _logger.LogInformation($"created xid {xid} in service {nameof(CreateOrder2)}");
-                // bind xid to current call context
-                CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, xid);
-
-                // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
-                // 从而包装好分支事务的注册
-                sagaContext = new SagaContext<CreateOrderSagaData>(xid, _sagaCollaborator,
-                    _sagaDataConverter, _sagaResolver, _logger);
-                CallContext.SetData(SagaGlobal.SAGA_CONTEXT_CONTEXT_KEY, sagaContext);
-
-                // 初始化saga data避免以后回滚时得到null sagaData
-                await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
-
-                // TODO: sagaContext invoke改成统一调用SimpleSaga继承类，从而只需要对SimpleSaga继承类做saga proxy
-                // await sagaContext.InvokeAsync(_orderService.createOrder, form);
-                // await _orderService.createOrder(form);
-                // await sagaContext.InvokeAsync(_createOrderSaga.createOrder, form);
-                await _createOrderSaga.createOrder(form);
-                // TODO: SimpleSaga的继承类也要用代理实现自动sagaContext.InvokeAsync
-                // await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);
-                await _createOrderSaga.reserveCustomer(form);
-                // await sagaContext.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
-                await _createOrderSaga.addLockedBalanceToMerchant(form);
-                // await sagaContext.InvokeAsync(_orderService.approveOrder, form);
-                // await _orderService.approveOrder(form);
-                // await sagaContext.InvokeAsync(_createOrderSaga.approveOrder, form);
-                await _createOrderSaga.approveOrder(form);
-                // await sagaContext.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
-                await _createOrderSaga.approveAddLockedBalanceToMerchant(form);
-                // await sagaContext.InvokeAsync(_createOrderSaga.addOrderHistory, form);
-                await _createOrderSaga.addOrderHistory(form);
-
-                await sagaContext.Commit();
-
-                return form.OrderId;
-            }
-            catch (Exception e)
-            {
-                _logger.LogError("CreateOrder2 error", e);
-                if (sagaContext != null)
+                try
                 {
+                    await sagaContext.Start(form);
+                    sagaContext.Bind(); // 把saga session绑定当当前async上下文中
+                    // await sagaSession.InvokeAsync(_orderService.createOrder, form);
+                    // await _orderService.createOrder(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.createOrder, form);
+                    await _createOrderSaga.createOrder(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.reserveCustomer, form);
+                    await _createOrderSaga.reserveCustomer(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
+                    await _createOrderSaga.addLockedBalanceToMerchant(form);
+                    // await sagaSession.InvokeAsync(_orderService.approveOrder, form);
+                    // await _orderService.approveOrder(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.approveOrder, form);
+                    await _createOrderSaga.approveOrder(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
+                    await _createOrderSaga.approveAddLockedBalanceToMerchant(form);
+                    // await sagaSession.InvokeAsync(_createOrderSaga.addOrderHistory, form);
+                    await _createOrderSaga.addOrderHistory(form);
+
+                    await sagaContext.Commit();
+
+                    return form.OrderId;
+                }
+                catch (Exception e)
+                {
+                    _logger.LogError("CreateOrder2 error", e);
                     await sagaContext.Rollback();
+                    if (form.RejectionReason != null)
+                    {
+                        return form.RejectionReason.ToString();
+                    }
+                    return e.Message;
                 }
-                if (form.RejectionReason != null)
-                {
-                    return form.RejectionReason.ToString();
-                }
-                return e.Message;
-            }
-            finally
-            {
-                CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, null);
-                CallContext.SetData(SagaGlobal.SAGA_CONTEXT_CONTEXT_KEY, null);
             }
         }
 

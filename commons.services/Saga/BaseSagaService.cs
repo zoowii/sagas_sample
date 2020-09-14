@@ -10,19 +10,19 @@ namespace commons.services.Saga
     public class BaseSagaService<T> : SagaService where T: class, SagaData
     {
         // TODO: SagaService的实现类的代理类要在业务方法中拦截字节码增强为调用OnSagaCall(被代理对象的func, arg)
-        public async Task OnSagaCall(SagaContext<T>.StepCallback func, T sagaData)
+        public async Task OnSagaCall(SagaSession<T>.StepCallback func, T sagaData)
         {
             if(this.GetType() == typeof(BaseSagaService<T>))
             {
                 throw new NotImplementedException();
             }
-            // get current sagaContext and call invoke
-            SagaContext<T> sagaContext = CallContext.GetData(SagaGlobal.SAGA_CONTEXT_CONTEXT_KEY) as SagaContext<T>;
-            if(sagaContext == null)
+            // get current sagaSession and call invoke
+            SagaSession<T> sagaSession = CallContext.GetData(SagaGlobal.SAGA_SESSION_CONTEXT_KEY) as SagaSession<T>;
+            if(sagaSession == null)
             {
-                throw new InvalidOperationException($"saga context not fetched");
+                throw new InvalidOperationException($"saga session not fetched");
             }
-            await sagaContext.InvokeAsync(func, sagaData);
+            await sagaSession.InvokeAsync(func, sagaData);
         }
     }
 }

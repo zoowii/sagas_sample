@@ -1,130 +1,98 @@
 ﻿using commons.services.Sagas;
+using commons.services.Utils;
+using Microsoft.Extensions.Logging;
 using System;
 using System.Collections.Generic;
 using System.Text;
-using System.Linq;
 using System.Threading.Tasks;
-using System.Collections.Concurrent;
-using System.Reflection;
-using Microsoft.Extensions.Logging;
-using commons.services.Utils;
 
 namespace commons.services.Saga
 {
-    public class SagaContext<FormType> where FormType : class, SagaData
+    public sealed class SagaContext : IDisposable
     {
-        public delegate Task StepCallback(FormType form);
-
-        private readonly string _xid;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ISagaResolver _sagaResolver;
         private readonly ILogger _logger;
 
-        public SagaContext(string xid,
-            SagaCollaborator sagaCollaborator,
+        private ISagaSession _sagaSession;
+
+        public ISagaSession SagaSession
+        {
+            get
+            {
+                return _sagaSession;
+            }
+        }
+
+        public SagaContext(SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
             ISagaResolver sagaResolver,
             ILogger logger)
         {
-            this._xid = xid;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
             this._sagaResolver = sagaResolver;
             this._logger = logger;
+            this._sagaSession = null;
         }
 
-        public string Xid { get { return _xid; } }
-
-        private class BranchStepInfo
+        public async Task<string> Start<T>(T form) where T : class, SagaData
         {
-            public string BranchServiceKey { get; set; }
-            public string BranchCompensationServiceKey { get; set; }
+            var xid = await _sagaCollaborator.CreateGlobalTxAsync();
+            _logger.LogInformation($"created xid {xid}");
+            // bind xid to current call context
+            CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, xid);
+
+            // 用一个branchCaller服务去带着xid和sagaData去调用现有的SagaService的方法，
+            // 从而包装好分支事务的注册
+            _sagaSession = new SagaSession<T>(xid, _sagaCollaborator,
+                _sagaDataConverter, _sagaResolver, _logger);
+            CallContext.SetData(SagaGlobal.SAGA_SESSION_CONTEXT_KEY, _sagaSession);
+
+            // 上面这里的CallContext.SetData后的值下个线程就取不到了. 可能是因为不在同一个async CPS中?. 所以返回后要调用Bind()
+
+            // 初始化saga data避免以后回滚时得到null sagaData
+            await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
+            return xid;
         }
 
-        // 缓存的branchStepCallbackMethod => BranchStepInfo
-        private ConcurrentDictionary<MethodInfo, BranchStepInfo> _cachedBranchStepInfos = new ConcurrentDictionary<MethodInfo, BranchStepInfo>();
-        
-        private BranchStepInfo getBranchStepInfo(StepCallback branchStep)
+        // await Start()后需要调用Bind()在当前async CPS中绑定上下文，从而在上层的同一个async CPS中能取到sagaSession
+        public void Bind()
         {
-            return _cachedBranchStepInfos.GetOrAdd(branchStep.Method, (method) =>
+            var sagaSession = this._sagaSession;
+            if (sagaSession == null)
             {
-                var methodName = method.Name;
-                var compensableAttr = MethodUtils.GetDeclaredAttribute<Compensable>(method, typeof(Compensable));
-                var branchServiceKey = _sagaResolver.GetServiceKey(method.DeclaringType, methodName);
-                var branchCompensationServiceKey = "";
-                if (compensableAttr != null)
-                {
-                    var compensationMethodName = (compensableAttr as Compensable).ActionName;
-                    branchCompensationServiceKey = _sagaResolver.GetServiceKey(method.DeclaringType, compensationMethodName);
-                }
-                return new BranchStepInfo()
-                {
-                    BranchServiceKey = branchServiceKey,
-                    BranchCompensationServiceKey = branchCompensationServiceKey
-                };
-            });
+                return;
+            }
+            var xid = sagaSession.Xid;
+            CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, xid);
+            CallContext.SetData(SagaGlobal.SAGA_SESSION_CONTEXT_KEY, _sagaSession);
         }
 
-        public async Task InvokeAsync(StepCallback branchStep, FormType sagaData)
-        {
-            // 注册branch tx id
-            var branchStepInfo = getBranchStepInfo(branchStep);
-
-            var branchTxId = await _sagaCollaborator.CreateBranchTxAsync(_xid,
-                branchStepInfo.BranchServiceKey,
-                branchStepInfo.BranchCompensationServiceKey);
-
-            // 本次执行的jobId
-            var jobId = Guid.NewGuid().ToString();
-
-            _logger.LogInformation($"created branch txid {branchTxId} jobId {jobId} in xid {_xid}");
-
-            
-            try
-            {   
-                // invoke branchStep
-                await branchStep(sagaData);
-
-                // 调用成功，通知saga server状态变化
-                var oldBranchTxDetail = await _sagaCollaborator.QueryBranchTxAsync(branchTxId);
-                var sagaDataBytes = _sagaDataConverter.Serialize(sagaData.GetType(), sagaData);
-
-                var newState = await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
-                    oldBranchTxDetail.Detail.State, saga_server.TxState.Committed,
-                    oldBranchTxDetail.Detail.Version, jobId, "",
-                    sagaDataBytes);
-
-                _logger.LogInformation($"branch txid {branchTxId} state changed to {newState}");
-            }
-            catch (Exception e)
-            {
-                _logger.LogError($"invoke branch service {branchStepInfo.BranchServiceKey} error", e);
-                // 如果有异常，通知saga server回滚后台执行回滚,然后再抛出异常
-                var oldBranchTxDetail = await _sagaCollaborator.QueryBranchTxAsync(branchTxId);
-                await _sagaCollaborator.SubmitBranchTxStateAsync(_xid, branchTxId,
-                    oldBranchTxDetail.Detail.State, saga_server.TxState.CompensationDoing,
-                    oldBranchTxDetail.Detail.Version, jobId, e.Message, null);
-
-                throw e;
-            }
-            
-            return;
-        }
-
-        // 提交全局事务
         public async Task Commit()
         {
-            await _sagaCollaborator.SubmitGlobalTxStateOptimismAsync(_xid, saga_server.TxState.Committed);
-            return;
+            var sagaSession = this._sagaSession;
+            if (sagaSession == null)
+            {
+                return;
+            }
+            await sagaSession.Commit();
         }
 
-        // 回滚本全局事务
         public async Task Rollback()
         {
-            await _sagaCollaborator.SubmitGlobalTxStateOptimismAsync(_xid, saga_server.TxState.CompensationDoing);
-            return;
+            var sagaSession = this._sagaSession;
+            if (sagaSession == null)
+            {
+                return;
+            }
+            await sagaSession.Rollback();
         }
-
+        public void Dispose()
+        {
+            CallContext.SetData(SagaGlobal.SAGA_XID_CONTEXT_KEY, null);
+            CallContext.SetData(SagaGlobal.SAGA_SESSION_CONTEXT_KEY, null);
+        }
     }
 }

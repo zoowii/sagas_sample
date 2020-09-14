@@ -8,8 +8,8 @@ using order_service;
 
 namespace BusinessApi.Sagas
 {
-    // TODO: 定义IOrderService和OrderServiceImpl, startup时自动产生实现了IOrderService的代理类，
-    //  代理类在调用实际方法前会调用currentSagaContext.InvokeAsync
+    //  定义IOrderService和OrderServiceImpl, startup时自动产生实现了IOrderService的代理类，
+    //  代理类在调用实际方法前会调用currentSagaSession.InvokeAsync
     public class OrderServiceImpl : IOrderService
     {
         private readonly GrpcClientsHolder _grpcClientsHolder;

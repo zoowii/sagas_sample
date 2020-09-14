@@ -19,23 +19,26 @@ namespace BusinessApi.Controllers
     public class OrderController : ControllerBase
     {
         private readonly ILogger<OrderController> _logger;
-        private readonly CreateOrderSaga _createOrderSaga;
-        private readonly IOrderService _orderService;
+        private readonly ICreateOrderSaga _createOrderSaga;
+        private readonly CreateOrderSaga _realCreateOrderSaga;
+        // private readonly IOrderService _orderService;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ISagaResolver _sagaResolver;
 
         public OrderController(ILogger<OrderController> logger,
-            CreateOrderSaga createOrderSaga,
-            IOrderService orderService,
-            SagaCollaborator sagaCollaborator,
+            ICreateOrderSaga createOrderSaga,
+            CreateOrderSaga realCreateOrderSaga,
+        // IOrderService orderService,
+        SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
             ISagaResolver sagaResolver
             )
         {
             this._logger = logger;
             this._createOrderSaga = createOrderSaga;
-            this._orderService = orderService;
+            this._realCreateOrderSaga = realCreateOrderSaga;
+            // this._orderService = orderService;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
             this._sagaResolver = sagaResolver;
@@ -71,7 +74,7 @@ namespace BusinessApi.Controllers
                     Amount = amount
                 }
             };
-            await _createOrderSaga.Start(form);
+            await _realCreateOrderSaga.Start(form);
             if (form.RejectionReason != null)
             {
                 return form.RejectionReason.ToString();
@@ -113,15 +116,24 @@ namespace BusinessApi.Controllers
                 // 初始化saga data避免以后回滚时得到null sagaData
                 await _sagaCollaborator.InitSagaDataAsync(xid, _sagaDataConverter.Serialize(form.GetType(), form));
 
+                // TODO: sagaContext invoke改成统一调用SimpleSaga继承类，从而只需要对SimpleSaga继承类做saga proxy
                 // await sagaContext.InvokeAsync(_orderService.createOrder, form);
-                await _orderService.createOrder(form);
+                // await _orderService.createOrder(form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.createOrder, form);
+                await _createOrderSaga.createOrder(form);
                 // TODO: SimpleSaga的继承类也要用代理实现自动sagaContext.InvokeAsync
-                await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);
-                await sagaContext.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.reserveCustomer, form);
+                await _createOrderSaga.reserveCustomer(form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
+                await _createOrderSaga.addLockedBalanceToMerchant(form);
                 // await sagaContext.InvokeAsync(_orderService.approveOrder, form);
-                await _orderService.approveOrder(form);
-                await sagaContext.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
-                await sagaContext.InvokeAsync(_createOrderSaga.addOrderHistory, form);
+                // await _orderService.approveOrder(form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.approveOrder, form);
+                await _createOrderSaga.approveOrder(form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
+                await _createOrderSaga.approveAddLockedBalanceToMerchant(form);
+                // await sagaContext.InvokeAsync(_createOrderSaga.addOrderHistory, form);
+                await _createOrderSaga.addOrderHistory(form);
 
                 await sagaContext.Commit();
 

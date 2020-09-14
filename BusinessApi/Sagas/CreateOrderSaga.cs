@@ -14,7 +14,7 @@ using commons.services.Saga;
 
 namespace BusinessApi.Sagas
 {
-    public class CreateOrderSaga : SimpleSaga<CreateOrderSagaData>
+    public class CreateOrderSaga : SimpleSaga<CreateOrderSagaData>, ICreateOrderSaga
     {
         // private readonly SagaWorker _sagaWorker;
         private readonly SagaDefinition sagaDefinition;
@@ -52,7 +52,7 @@ namespace BusinessApi.Sagas
             sagaDefinition = Step()
                 //.SetRemoteAction(createOrder)
                 //.WithCompensation(cancelOrder)
-                .SetRemoteAction(_orderService.createOrder)
+                .SetRemoteAction(createOrder)
                 .Step()
                 .SetRemoteAction(reserveCustomer)
                 .WithCompensation(cancelReserveCustomer)
@@ -60,8 +60,7 @@ namespace BusinessApi.Sagas
                 .SetRemoteAction(addLockedBalanceToMerchant)
                 .WithCompensation(cancelAddLockedBalanceToMerchant)
                 .Step()
-                //.SetRemoteAction(approveOrder)
-                .SetRemoteAction(_orderService.approveOrder)
+                .SetRemoteAction(approveOrder)
                 .Step()
                 .SetRemoteAction(approveAddLockedBalanceToMerchant)
                 .Step()
@@ -79,6 +78,22 @@ namespace BusinessApi.Sagas
         {
             return null;
             // return _sagaWorker;
+        }
+
+        [Compensable(nameof(cancelOrder))]
+        public async Task createOrder(CreateOrderSagaData form)
+        {
+            await _orderService.createOrder(form);
+        }
+
+        public async Task cancelOrder(CreateOrderSagaData form)
+        {
+            await _orderService.cancelOrder(form);
+        }
+
+        public async Task approveOrder(CreateOrderSagaData form)
+        {
+            await _orderService.approveOrder(form);
         }
 
         // 用public而不是private是为了暴露给sagaContext调用

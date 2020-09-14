@@ -32,9 +32,9 @@ namespace BusinessApi
             services.AddControllers();
 
             services.AddSagaService<OrderServiceImpl>();
-            services.AddSingleton<IOrderService, OrderServiceSagaProxy>();
-
-            services.AddSaga<CreateOrderSaga>();
+            // services.AddSingleton<IOrderService, OrderServiceSagaProxy>();
+            // services.AddSaga<CreateOrderSaga>();
+            services.AddSaga<ICreateOrderSaga, CreateOrderSaga, CreateOrderSagaProxy>(); // 这么写可以创建代理，避免手动做一些xid获取等的事情
 
             var consulAddress = Configuration.GetSection("Consul")["ConsulUrl"];
             services.AddSingleton<IConsulClient>(new ConsulClient(o => o.Address = new Uri(consulAddress)));

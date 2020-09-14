@@ -13,10 +13,21 @@ namespace Microsoft.Extensions.DependencyInjection
         private static List<Type> simpleSagaTypes = new List<Type>();
         private static List<Type> sagaServicesTypes = new List<Type>();
 
-        public static IServiceCollection AddSaga<T>(this IServiceCollection services) where T : class, ISimpleSaga
+        public static IServiceCollection AddSaga<T>(this IServiceCollection services) where T : class, ISaga
         {
             services.AddSingleton<T>();
             simpleSagaTypes.Add(typeof(T));
+            return services;
+        }
+
+        public static IServiceCollection AddSaga<Interface, RealClass, ProxyClass>(this IServiceCollection services)
+            where RealClass : class, ISaga, Interface 
+            where ProxyClass : class, ISaga, Interface
+            where Interface: class
+        {
+            services.AddSingleton<RealClass>();
+            simpleSagaTypes.Add(typeof(RealClass));
+            services.AddSingleton<Interface, ProxyClass>();
             return services;
         }
 
@@ -69,12 +80,12 @@ namespace Microsoft.Extensions.DependencyInjection
         }
 
 
-        // 在DI中加载各注册的ISimpleSaga的实现类型
-        public static IEnumerable<ISimpleSaga> LoadSagaTypes(this IServiceProvider serviceProvider)
+        // 在DI中加载各注册的ISaga的实现类型
+        public static IEnumerable<ISaga> LoadSagaTypes(this IServiceProvider serviceProvider)
         {
             var sagaTypes = serviceProvider.GetSagaTypes();
 
-            var allSagas = from t in sagaTypes select serviceProvider.GetService(t) as ISimpleSaga;
+            var allSagas = from t in sagaTypes select serviceProvider.GetService(t) as ISaga;
 
             // TODO: 对sagaServicesTypes 中的各满足条件的业务方法和补偿方法绑定serviceKey => serviceMethod
 

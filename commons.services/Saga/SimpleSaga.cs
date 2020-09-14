@@ -10,7 +10,11 @@ using commons.services.Utils;
 
 namespace commons.services.Sagas
 {
-    public interface ISimpleSaga 
+    public interface ISaga
+    {
+
+    }
+    public interface ISimpleSaga : ISaga
     {
         SagaDefinition GetSagaDefinition();
         SagaWorker GetSagaWorker();

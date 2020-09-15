@@ -43,12 +43,12 @@ namespace BusinessApi.Sagas
 
 
             // 本saga中服务会自动注入reslver，额外的服务需要手动注入
-            _sagaResolver.BindBranch<CreateOrderSagaData>( _orderService.createOrder);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.cancelOrder);
-            _sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.approveOrder);
+            //_sagaResolver.BindBranch<CreateOrderSagaData>( _orderService.createOrder);
+            //_sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.cancelOrder);
+            //_sagaResolver.BindBranch<CreateOrderSagaData>(_orderService.approveOrder);
             
 
-
+            // 显示定义 sagaDefinition是可选的，如果使用saga server管理动态分支，则不需要显示定义sagaDefinition
             sagaDefinition = Step()
                 //.SetRemoteAction(createOrder)
                 //.WithCompensation(cancelOrder)

@@ -101,13 +101,12 @@ namespace BusinessApi.Controllers
             };
 
             // TODO: 把sagaContext和start/commit/rollback玻璃出来，业务代码简单写就可以了
-            using (var sagaContext = new SagaContext(_sagaCollaborator,
-                    _sagaDataConverter, _sagaResolver, _logger))
+            using (var sagaContext = new SagaContext(_sagaCollaborator, _logger))
             {
                 try
                 {
                     await sagaContext.Start(form);
-                    sagaContext.Bind(); // 把saga session绑定当当前async上下文中
+                    sagaContext.Bind(); // 把saga session绑定到当前async上下文中
                     await _createOrderSaga.createOrder(form);
                     await _createOrderSaga.reserveCustomer(form);
                     await _createOrderSaga.addLockedBalanceToMerchant(form);

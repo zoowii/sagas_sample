@@ -83,6 +83,10 @@ namespace Microsoft.Extensions.DependencyInjection
         // 在DI中加载各注册的ISaga的实现类型
         public static IEnumerable<ISaga> LoadSagaTypes(this IServiceProvider serviceProvider)
         {
+            // 预先加载一些saga相关基础类
+            serviceProvider.GetService(typeof(ISagaDataConverter));
+            serviceProvider.GetService(typeof(ISagaResolver));
+
             var sagaTypes = serviceProvider.GetSagaTypes();
 
             var allSagas = from t in sagaTypes select serviceProvider.GetService(t) as ISaga;

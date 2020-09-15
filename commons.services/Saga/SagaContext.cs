@@ -26,13 +26,11 @@ namespace commons.services.Saga
         }
 
         public SagaContext(SagaCollaborator sagaCollaborator,
-            ISagaDataConverter sagaDataConverter,
-            ISagaResolver sagaResolver,
             ILogger logger)
         {
             this._sagaCollaborator = sagaCollaborator;
-            this._sagaDataConverter = sagaDataConverter;
-            this._sagaResolver = sagaResolver;
+            this._sagaDataConverter = SagaGlobal.CurrentSagaDataConverter;
+            this._sagaResolver = SagaGlobal.CurrentSagaResolver;
             this._logger = logger;
             this._sagaSession = null;
         }

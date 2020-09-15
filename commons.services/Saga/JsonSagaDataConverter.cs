@@ -10,6 +10,11 @@ namespace commons.services.Saga
 {
     public class JsonSagaDataConverter : ISagaDataConverter
     {
+
+        public JsonSagaDataConverter()
+        {
+            SagaGlobal.CurrentSagaDataConverter = this;
+        }
         public T Deserialize<T>(Func<string, Type> typeResolver, byte[] bytes) where T : class, SagaData
         {
             if(bytes == null || bytes.Length==0)

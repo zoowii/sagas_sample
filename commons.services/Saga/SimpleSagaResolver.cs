@@ -11,6 +11,11 @@ namespace commons.services.Saga
     {
         private ConcurrentDictionary<string, Func<object, Task>> _bindedBranchServices = new ConcurrentDictionary<string, Func<object, Task>>();
 
+        public SimpleSagaResolver()
+        {
+            SagaGlobal.CurrentSagaResolver = this;
+        }
+
         public void BindBranch<T>(string serviceKey, Func<T, Task> func) where T : class, SagaData
         {
             _bindedBranchServices[serviceKey] = (arg) =>

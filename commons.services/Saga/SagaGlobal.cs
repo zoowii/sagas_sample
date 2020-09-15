@@ -13,6 +13,9 @@ namespace commons.services.Saga
         public const string SAGA_XID_CONTEXT_KEY = "saga_xid"; // saga xid在CallContext中的上下文变量
         public const string SAGA_SESSION_CONTEXT_KEY = "saga_session"; // sagaSession在CallContext中的上下文变量
 
+        public static ISagaResolver CurrentSagaResolver { get; set; }
+        public static ISagaDataConverter CurrentSagaDataConverter { get; set; }
+
 
         private static ConcurrentDictionary<string, Type> _bindedSagaDataTypes = new ConcurrentDictionary<string, Type>();
 

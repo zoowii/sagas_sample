@@ -2,6 +2,7 @@
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
+using BusinessApi.Exceptions;
 using commons.services.Saga;
 using commons.services.Sagas;
 using order_service;
@@ -87,6 +88,32 @@ namespace BusinessApi.Sagas
             }
         }
 
+        public async Task<OrderDetail> queryOrder(string orderId)
+        {
+            var reply = await _grpcClientsHolder.OrderClient.QueryOrderAsync(
+                new QueryOrderRequest
+                { 
+                    OrderId = orderId 
+                });
+            if(!reply.Success)
+            {
+                throw new ServerErrorException(reply.Message);
+            }
+            return reply.Detail;
+        }
 
+        public async Task<ListOrdersReply> listOrders(int limit)
+        {
+            var reply = await _grpcClientsHolder.OrderClient.ListOrdersAsync(
+                new ListOrdersRequest
+                {
+                    Limit = limit
+                });
+            if (!reply.Success)
+            {
+                throw new ServerErrorException(reply.Message);
+            }
+            return reply;
+        }
     }
 }

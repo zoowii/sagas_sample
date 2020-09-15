@@ -7,7 +7,6 @@ namespace commons.services.Sagas
 {
     public class SagaInfo
     {
-
         public SagaInfo Clone()
         {
             SagaInfo c = new SagaInfo();

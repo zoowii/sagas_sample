@@ -71,5 +71,57 @@ namespace order_service
                 Message = $"approved order {orderId}"
             });
         }
+
+        public override Task<QueryOrderReply> QueryOrder(QueryOrderRequest request, ServerCallContext context)
+        {
+            var orderId = request.OrderId;
+            var order = _orders.GetValueOrDefault(orderId);
+            if(order == null)
+            {
+                return Task.FromResult(new QueryOrderReply()
+                {
+                    Success = false,
+                    Message = $"can't find order {orderId}"
+                });
+            }
+            return Task.FromResult(new QueryOrderReply()
+            {
+                Success = true,
+                Detail = new OrderDetail()
+                {
+                    OrderId = order.OrderId,
+                    CustomerName = order.CustomerName,
+                    GoodsName = order.GoodsName,
+                    Amount = order.Amount,
+                    State = Convert.ToInt32(order.State)
+                }
+            });
+        }
+
+        public override Task<ListOrdersReply> ListOrders(ListOrdersRequest request, ServerCallContext context)
+        {
+            var orderIds = _orders.Keys;
+            var list = new List<OrderDetail>();
+            foreach(var orderId in orderIds)
+            {
+                var order = _orders[orderId];
+                var item = new OrderDetail()
+                {
+                    OrderId = order.OrderId,
+                    CustomerName = order.CustomerName,
+                    GoodsName = order.GoodsName,
+                    Amount = order.Amount,
+                    State = Convert.ToInt32(order.State)
+                };
+                list.Add(item);
+            }
+            var reply = new ListOrdersReply()
+            {
+                Success = true,
+                Total = list.Count()
+            };
+            reply.Details.AddRange(list);
+            return Task.FromResult(reply);
+        }
     }
 }

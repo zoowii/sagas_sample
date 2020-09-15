@@ -10,6 +10,7 @@ using Microsoft.Extensions.Logging;
 using commons.services.Saga;
 using System.Threading;
 using commons.services.Utils;
+using order_service;
 
 namespace BusinessApi.Controllers
 {
@@ -21,7 +22,7 @@ namespace BusinessApi.Controllers
         private readonly ILogger<OrderController> _logger;
         private readonly ICreateOrderSaga _createOrderSaga;
         private readonly CreateOrderSaga _realCreateOrderSaga;
-        // private readonly IOrderService _orderService;
+        private readonly IOrderService _orderService;
         private readonly SagaCollaborator _sagaCollaborator;
         private readonly ISagaDataConverter _sagaDataConverter;
         private readonly ISagaResolver _sagaResolver;
@@ -29,8 +30,8 @@ namespace BusinessApi.Controllers
         public OrderController(ILogger<OrderController> logger,
             ICreateOrderSaga createOrderSaga,
             CreateOrderSaga realCreateOrderSaga,
-        // IOrderService orderService,
-        SagaCollaborator sagaCollaborator,
+            OrderServiceImpl orderService,
+            SagaCollaborator sagaCollaborator,
             ISagaDataConverter sagaDataConverter,
             ISagaResolver sagaResolver
             )
@@ -38,7 +39,7 @@ namespace BusinessApi.Controllers
             this._logger = logger;
             this._createOrderSaga = createOrderSaga;
             this._realCreateOrderSaga = realCreateOrderSaga;
-            // this._orderService = orderService;
+            this._orderService = orderService;
             this._sagaCollaborator = sagaCollaborator;
             this._sagaDataConverter = sagaDataConverter;
             this._sagaResolver = sagaResolver;
@@ -46,18 +47,19 @@ namespace BusinessApi.Controllers
 
         // GET: api/Order
         [HttpGet]
-        public IEnumerable<string> Get()
+        public async Task<IEnumerable<OrderDetail>> Get()
         {
-            // TODO: 查询order列表
-            return new string[] { "value1", "value2" };
+            var limit = 100;
+            var ordersReply = await _orderService.listOrders(limit);
+            return ordersReply.Details;
         }
 
         // GET: api/Order/5
-        [HttpGet("{id}", Name = "Get")]
-        public string Get(int id)
+        [HttpGet("{orderId}", Name = "Get")]
+        public async Task<OrderDetail> Get(string orderId)
         {
-            // TODO: 查询某个order
-            return "value";
+            var order = await _orderService.queryOrder(orderId);
+            return order;
         }
 
         // example url: http://localhost:65263/api/order/createOrder?goodsName=pen&customerName=zhang3&amount=1
@@ -106,22 +108,13 @@ namespace BusinessApi.Controllers
                 {
                     await sagaContext.Start(form);
                     sagaContext.Bind(); // 把saga session绑定当当前async上下文中
-                    // await sagaSession.InvokeAsync(_orderService.createOrder, form);
-                    // await _orderService.createOrder(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.createOrder, form);
                     await _createOrderSaga.createOrder(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.reserveCustomer, form);
                     await _createOrderSaga.reserveCustomer(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.addLockedBalanceToMerchant, form);
                     await _createOrderSaga.addLockedBalanceToMerchant(form);
-                    // await sagaSession.InvokeAsync(_orderService.approveOrder, form);
-                    // await _orderService.approveOrder(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.approveOrder, form);
                     await _createOrderSaga.approveOrder(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.approveAddLockedBalanceToMerchant, form);
                     await _createOrderSaga.approveAddLockedBalanceToMerchant(form);
-                    // await sagaSession.InvokeAsync(_createOrderSaga.addOrderHistory, form);
                     await _createOrderSaga.addOrderHistory(form);
+                    // 也可以在这里加上其他各种业务逻辑
 
                     await sagaContext.Commit();
 

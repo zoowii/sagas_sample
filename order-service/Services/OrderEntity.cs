@@ -7,9 +7,9 @@ namespace order_service.Services
 {
     public enum OrderState
     {
-        PENDING,
-        SUBMITED,
-        ABORTED
+        PENDING = 0,
+        SUBMITED = 1,
+        ABORTED = 2
     }
     public class OrderEntity
     {

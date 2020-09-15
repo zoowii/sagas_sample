@@ -86,9 +86,6 @@ namespace Microsoft.Extensions.DependencyInjection
             var sagaTypes = serviceProvider.GetSagaTypes();
 
             var allSagas = from t in sagaTypes select serviceProvider.GetService(t) as ISaga;
-
-            // TODO: 对sagaServicesTypes 中的各满足条件的业务方法和补偿方法绑定serviceKey => serviceMethod
-
             return allSagas;
         }
     }

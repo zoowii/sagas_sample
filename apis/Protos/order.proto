@@ -8,6 +8,8 @@ service Order {
   rpc CreateOrder (CreateOrderRequest) returns (CreateOrderReply);
   rpc CancelOrder (CancelOrderRequest) returns (CancelOrderReply);
   rpc Approve (ApproveRequest) returns (ApproveReply);
+  rpc QueryOrder (QueryOrderRequest) returns (QueryOrderReply);
+  rpc ListOrders (ListOrdersRequest) returns (ListOrdersReply);
 }
 
 // The request message containing the user's name.
@@ -40,4 +42,33 @@ message ApproveRequest {
 message ApproveReply {
   bool success = 1;
   string message = 2;
+}
+
+message QueryOrderRequest {
+	string orderId = 1;
+}
+
+message OrderDetail {
+	string orderId = 1;
+	string customerName = 2;
+    string goodsName = 3;
+    int64 amount = 4;
+	int32 state = 5;
+}
+
+message QueryOrderReply {
+	bool success = 1;
+	string message = 2;
+	OrderDetail detail = 3;
+}
+
+message ListOrdersRequest {
+	int32 limit = 1;
+}
+
+message ListOrdersReply {
+	bool success = 1;
+	string message = 2;
+	repeated OrderDetail details = 3;
+	int32 total = 4;
 }
